@@ -25,11 +25,13 @@ export function AlertTrendCard({ data, rangeLabel, className }: Props) {
           xTickCount={6}
           smooth={true}
           renderTooltip={(p) => (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-slate-400">{p.timeLabel}</span>
-              <div className="flex items-center gap-2 text-[#fafafa] font-medium text-xs">
-                <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#FF7A6F' }} />
-                {p.value} alerts
+            <div className="bg-[#1e232b]/80 border border-[#2d333b] rounded-lg px-3 py-2.5 shadow-[0_8px_30px_rgb(0,0,0,0.4)] backdrop-blur-md min-w-[110px]">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">{p.timeLabel}</span>
+                <div className="flex items-center gap-2 text-[#fafafa] font-bold text-[13px]">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#FF7A6F', boxShadow: '0 0 8px rgba(255, 122, 111, 0.8)' }} />
+                  {p.value} alerts
+                </div>
               </div>
             </div>
           )}
