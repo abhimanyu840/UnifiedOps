@@ -25,13 +25,24 @@ export function AlertTrendCard({ data, rangeLabel, className }: Props) {
           xTickCount={6}
           smooth={true}
           renderTooltip={(p) => (
-            <div className="bg-[#1e232b]/80 border border-[#2d333b] rounded-lg px-3 py-2.5 shadow-[0_8px_30px_rgb(0,0,0,0.4)] backdrop-blur-md min-w-[110px]">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">{p.timeLabel}</span>
-                <div className="flex items-center gap-2 text-[#fafafa] font-bold text-[13px]">
-                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#FF7A6F', boxShadow: '0 0 8px rgba(255, 122, 111, 0.8)' }} />
-                  {p.value} alerts
-                </div>
+            <div style={{
+              background: 'rgba(30, 35, 43, 0.8)',
+              border: '1px solid #2d333b',
+              borderRadius: '8px',
+              padding: '10px 12px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(8px)',
+              minWidth: '110px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                {p.timeLabel}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fafafa', fontWeight: 700, fontSize: '13px' }}>
+                <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#FF7A6F', boxShadow: '0 0 8px rgba(255, 122, 111, 0.8)' }} />
+                {p.value} alerts
               </div>
             </div>
           )}
