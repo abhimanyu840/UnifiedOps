@@ -33,7 +33,7 @@ export function NTPCard({ alertCount, rangeLabel, onView, className }: Props) {
       }}
       title="Click to view NTP / time-sync alerts"
     >
-      <CardTitle hint="(Network Time Protocol)">NTP</CardTitle>
+      <CardTitle>NTP</CardTitle>
 
       <div className="ntp-body">
         <div className="ntp-count">
