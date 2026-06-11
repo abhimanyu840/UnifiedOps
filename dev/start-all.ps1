@@ -234,7 +234,7 @@ Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
 
 $FrontendDir = Join-Path $Root 'frontend'
 Start-Process -WindowStyle Hidden -FilePath 'powershell.exe' `
-    -ArgumentList '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-Command',"cd `"$FrontendDir`"; npm run dev" `
+    -ArgumentList '-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-Command',"cd `"$FrontendDir`"; npm run dev *> frontend.log" `
     -WorkingDirectory $FrontendDir
 
 Write-Host "  start frontend -> http://localhost:3000"
