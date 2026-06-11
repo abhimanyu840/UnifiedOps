@@ -206,10 +206,10 @@ def _row_to_alert(row: Dict[str, Any], site: str, vendor: str) -> Optional[Dict[
         storage = row.get("source_ip", "-")
 
     event_text = (
-        row.get("_value")
-        or row.get("message")
+        row.get("message")
         or row.get("preview")
         or row.get("raw_message")
+        or row.get("_value")
         or "-"
     )
     event_text = str(event_text)
@@ -363,13 +363,22 @@ class AlertMonitor:
         except InfluxQueryError as exc:
             raise exc
         out: List[Dict[str, Any]] = []
+        merged = {}
         latest_iso: Optional[str] = self._cursors[key]
         cursor = self._cursors[key]
+
         for row in rows:
             t = str(row.get("_time", ""))
             if cursor and t <= cursor:
                 continue
-            alert = _row_to_alert(row, cfg["site"], cfg["vendor"])
+            if t not in merged:
+                merged[t] = dict(row)
+            field_name = row.get("_field")
+            if field_name:
+                merged[t][field_name] = row.get("_value")
+
+        for t, mrow in merged.items():
+            alert = _row_to_alert(mrow, cfg["site"], cfg["vendor"])
             if alert is None:
                 continue
             out.append(alert)
