@@ -1,0 +1,121 @@
+/* ---------- Header (topbar) ---------- */
+.header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  background: var(--bg-header);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r-lg);
+  flex-shrink: 0;
+  position: relative;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 6px 22px -10px rgba(0, 0, 0, 0.85);
+}
+
+.header__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand {
+  height: 30px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.brand--wipro { height: 30px; }
+.brand--hdfc  { height: 30px; }
+
+.header__center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header__brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1;
+  user-select: none;
+}
+
+.header__brand-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 10px rgba(0, 194, 255, 0.6))
+          drop-shadow(0 0 22px rgba(0, 123, 255, 0.35));
+}
+
+.header__title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.header__title-solid {
+  color: var(--text-primary);
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55));
+}
+
+.header__title-grad {
+  background: linear-gradient(135deg, var(--ops-grad-stops));
+  background-size: 260% 260%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 14px rgba(0, 194, 255, 0.6))
+          drop-shadow(0 0 26px rgba(92, 225, 255, 0.35));
+  animation: header-title-shimmer 9s ease-in-out infinite;
+  transition: filter 600ms ease;
+}
+
+.app[data-vendor="hitachi"] .header__title-grad {
+  filter: drop-shadow(0 0 14px rgba(230, 0, 18, 0.6))
+          drop-shadow(0 0 26px rgba(255, 90, 100, 0.35));
+}
+.app[data-vendor="netapp"] .header__title-grad {
+  filter: drop-shadow(0 0 14px rgba(0, 103, 197, 0.6))
+          drop-shadow(0 0 26px rgba(77, 163, 255, 0.35));
+}
+.app[data-vendor="dell"] .header__title-grad {
+  filter: drop-shadow(0 0 14px rgba(0, 133, 195, 0.6))
+          drop-shadow(0 0 26px rgba(92, 225, 255, 0.35));
+}
+.app[data-vendor="brocade"] .header__title-grad {
+  filter: drop-shadow(0 0 14px rgba(255, 106, 0, 0.6))
+          drop-shadow(0 0 26px rgba(255, 162, 77, 0.35));
+}
+
+@keyframes header-title-shimmer {
+  0%, 100% { background-position: 0%   0%;   }
+  50%      { background-position: 100% 100%; }
+}
+
+.header__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+

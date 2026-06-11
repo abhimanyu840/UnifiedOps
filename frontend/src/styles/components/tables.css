@@ -1,0 +1,171 @@
+/* Skeleton shimmer used by the loading state of AlertsDataTable + cards */
+.skeleton {
+  display: inline-block;
+  position: relative;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(230, 0, 18, 0.18) 20%,
+      rgba(255, 106, 0, 0.18) 40%,
+      rgba(92, 225, 255, 0.18) 60%,
+      rgba(0, 103, 197, 0.18) 80%,
+      rgba(255, 255, 255, 0.06) 100%
+    );
+  background-size: 300% 100%;
+  animation: skeleton-shimmer 2s ease-in-out infinite;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  background-size: inherit;
+  animation: inherit;
+  filter: blur(5px);
+  opacity: 0.7;
+  z-index: -1;
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position:  300% 0; }
+  100% { background-position: -300% 0; }
+}
+
+.alerts-row--skeleton td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.alerts-row--skeleton:hover { background: transparent; cursor: default; }
+
+/* Sortable column header decoration used by AlertsDataTable */
+.alerts-table th.is-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.12s;
+}
+
+.alerts-table th.is-sortable:hover {
+  color: var(--text-primary);
+}
+
+.alerts-table th .th__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.alerts-table th .th__sort {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-dim);
+}
+
+.alerts-table th[aria-sort], .alerts-table th .th__sort svg { color: var(--primary); }
+
+/* Pager below paginated tables (AlertDetailsModal) */
+.alerts-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+}
+
+.alerts-pager__info { margin-right: auto; }
+
+.alerts-pager__count {
+  margin-left: 6px;
+  color: var(--text-muted);
+}
+
+.alerts-pager__btn {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-mid);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.alerts-pager__btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(0, 194, 255, 0.05);
+}
+
+.alerts-pager__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.alerts-table thead tr {
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  background: var(--bg-card);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.alerts-table th {
+  font-weight: 600;
+  padding: 6px 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.col-time { width: 24%; }
+.col-name { width: 24%; }
+.col-ip   { width: 15%; }
+
+.alerts-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background-color 0.15s ease;
+}
+
+.alerts-table tbody tr:hover { background: rgba(0, 194, 255, 0.03); }
+
+.alerts-table td {
+  padding: 5px 8px;
+  vertical-align: middle;
+}
+
+.alerts-row              { color: var(--text-secondary); }
+.alerts-row--critical    { color: #F87171; }
+.alerts-row--error       { color: #F9A8A3; }
+.alerts-row--warning     { color: #FB923C; }
+.alerts-row--notice      { color: #FACC15; }
+.alerts-row--informational { color: #60A5FA; }
+
+.cell-mono { font-family: var(--font-mono); }
+
+.cell-truncate {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alert-list__sev {
+  font-weight: 600;
+  text-transform: capitalize;
+  font-size: 10.5px;
+}
+
+.empty-row {
+  padding: 14px;
+  text-align: center;
+  color: var(--text-dim);
+}
+

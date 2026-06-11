@@ -1,0 +1,79 @@
+/* ---------- Toast notifications ---------- */
+.toast-stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 320px;
+  /* Default `align-items: stretch` is what we want here — `flex-end`
+     collapsed each toast to its content width, which (combined with
+     the toast's grid layout) made the 1fr title/message column shrink
+     to 0 and the whole toast render as a 3px-wide sliver. The stack
+     itself is right-anchored, so children inherit that alignment via
+     the container's `right: 16px` without needing flex-end. */
+  pointer-events: none;
+}
+
+.toast {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 3px 1fr auto;
+  align-items: stretch;
+  gap: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-mid);
+  border-radius: 8px;
+  padding: 0 10px 0 0;
+  box-shadow: var(--shadow-pop);
+  pointer-events: auto;
+  overflow: hidden;
+  animation: toast-in 0.25s ease-out;
+}
+
+@keyframes toast-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.toast__bar { width: 3px; }
+
+.toast--critical      .toast__bar { background: var(--critical); }
+.toast--error         .toast__bar { background: var(--sev-error); }
+.toast--warning       .toast__bar { background: var(--warning); }
+.toast--notice        .toast__bar { background: var(--sev-notice); }
+.toast--informational .toast__bar { background: var(--primary); }
+
+.toast__body {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 0;
+  min-width: 0;
+}
+
+.toast__title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.toast__msg {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast__close {
+  align-self: center;
+  font-size: 16px;
+  color: var(--text-dim);
+  padding: 0 4px;
+}
+
+.toast__close:hover { color: var(--text-primary); }
+

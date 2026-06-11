@@ -1,0 +1,223 @@
+/* ---------- Report Panel ---------- */
+.rp-trigger {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 40;
+  width: 28px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-mid);
+  border-right: none;
+  border-radius: var(--r-lg) 0 0 var(--r-lg);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.025) inset,
+    0 10px 30px -10px rgba(0, 0, 0, 0.85);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.rp-trigger:hover {
+  border-color: var(--border-hover);
+  background: #18233a;
+  color: var(--primary);
+}
+
+.rp-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 45;
+  backdrop-filter: blur(3px);
+}
+
+.rp-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 380px;
+  z-index: 50;
+  background: var(--bg-main);
+  border-left: 1px solid var(--border-mid);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header — mirrors .header styling */
+.rp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-mid);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 6px 22px -10px rgba(0, 0, 0, 0.85);
+}
+
+.rp-header__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rp-header__icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 194, 255, 0.08);
+  border: 1px solid rgba(0, 194, 255, 0.2);
+  border-radius: var(--r-md);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.rp-header__title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.rp-header__sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.3;
+}
+
+/* Body */
+.rp-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Each filter field */
+.rp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rp-field__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Pill button inside report panel — full width variant */
+.rp-field__pill {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 8px 12px;
+}
+
+.rp-field__pill > span {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Dropdowns inside the panel — position relative to panel */
+.rp-body .dropdown {
+  position: relative;
+}
+
+.rp-dropdown {
+  left: 0;
+  right: 0;
+  min-width: unset;
+}
+
+/* Range dropdown: outer shell doesn't scroll, inner scroll area does */
+.rp-dropdown--range {
+  max-height: none;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+.rp-dropdown__scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rp-dropdown__scroll::-webkit-scrollbar { width: 6px; }
+.rp-dropdown__scroll::-webkit-scrollbar-track { background: transparent; }
+.rp-dropdown__scroll::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+.rp-dropdown__scroll::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* Dot indicator for locations / OEMs */
+.rp-dropdown .dot,
+.dropdown-menu .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* Footer */
+.rp-footer {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border-mid);
+  background: var(--bg-header);
+}
+
+.rp-download {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--primary);
+  color: #001220;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
+  box-shadow: var(--glow-blue);
+}
+
+.rp-download:hover:not(.rp-download--disabled) {
+  background: var(--primary-hover);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(0, 194, 255, 0.45);
+}
+
+.rp-download--disabled {
+  background: var(--bg-elev);
+  color: var(--text-disabled);
+  border: 1px solid var(--border-soft);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
