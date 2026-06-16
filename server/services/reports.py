@@ -43,6 +43,7 @@ class ReportService:
         vendors: Optional[List[str]] = None,
         limit: int = 50000,
         fmt: str = "csv",
+        report_type: str = "hardware",
     ) -> tuple[bytes, str, str]:
         """Fetch alerts across requested sites/vendors and return as formatted bytes, along with media_type and extension."""
         import io
@@ -52,7 +53,12 @@ class ReportService:
         import openpyxl
         from fpdf import FPDF
 
-        buckets = scoped_buckets(sites, vendors)
+        buckets = [dict(b) for b in scoped_buckets(sites, vendors)]
+        if report_type == "health_check":
+            buckets = [b for b in buckets if b["vendor"] == "brocade" and b["site"].upper() in ["CDVL", "BCP"]]
+            for b in buckets:
+                b["bucket"] = f"unified-ops-bucket-health-check-report-{b['site'].lower()}"
+
         per_bucket = await asyncio.gather(*[
             self._safe_query(bucket_key(b), _flux_report(b["bucket"], range_key, limit))
             for b in buckets
@@ -109,12 +115,16 @@ class ReportService:
             "Local Time", "Location", "Vendor", "Storage/Switch",
             "Severity", "Category", "Source IP", "Event Details"
         ]
+        
+        report_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         if not out:
             if fmt == "xlsx":
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "No Data"
+                ws.append([f"Report Generated At: {report_time_str}"])
+                ws.append([])
                 ws.append(["No data found for the selected criteria."])
                 buf = io.BytesIO()
                 wb.save(buf)
@@ -122,10 +132,10 @@ class ReportService:
             elif fmt == "pdf":
                 buf = io.BytesIO()
                 with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                    zf.writestr("No_Data.txt", b"No data found for the selected criteria.")
+                    zf.writestr("No_Data.txt", f"Report Generated At: {report_time_str}\n\nNo data found for the selected criteria.".encode('utf-8'))
                 return buf.getvalue(), "application/zip", "zip"
             else:
-                return b"No data found for the selected criteria.\n", "text/csv", "csv"
+                return f"Report Generated At: {report_time_str}\n\nNo data found for the selected criteria.\n".encode('utf-8'), "text/csv", "csv"
 
         # Group data by Vendor_Site
         groups = defaultdict(list)
@@ -141,6 +151,8 @@ class ReportService:
 
             for tab_name, rows in groups.items():
                 ws = wb.create_sheet(title=tab_name[:31])
+                ws.append([f"Report Generated At: {report_time_str}"])
+                ws.append([])
                 ws.append(fieldnames)
                 for r in rows:
                     ws.append([str(r[f]) for f in fieldnames])
@@ -159,7 +171,10 @@ class ReportService:
                     
                     pdf.set_font("helvetica", "B", 12)
                     pdf.cell(0, 10, f"UnifiedOps Alerts: {tab_name}", new_x="LMARGIN", new_y="NEXT", align="C")
-                    pdf.ln(5)
+                    
+                    pdf.set_font("helvetica", "I", 10)
+                    pdf.cell(0, 10, f"Report Generated At: {report_time_str}", new_x="LMARGIN", new_y="NEXT", align="L")
+                    pdf.ln(2)
                     
                     # Define headers to display in PDF
                     pdf_headers = ["Local Time", "Severity", "Storage/Switch", "Source IP", "Category", "Event Details"]
@@ -188,6 +203,7 @@ class ReportService:
         else:
             # Default to CSV
             output = io.StringIO()
+            output.write(f"Report Generated At: {report_time_str}\n\n")
             writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
             writer.writeheader()
             for row in out:

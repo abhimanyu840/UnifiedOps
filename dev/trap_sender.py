@@ -401,7 +401,7 @@ DEFAULT_TARGETS: Dict[str, str] = {
 # Multi-vendor configuration
 # ---------------------------------------------------------------------------
 
-VENDORS = ["Hitachi", "Brocade", "NetApp", "Dell"]
+VENDORS = ["Hitachi", "Brocade", "SANnav", "NetApp", "Dell"]
 
 # Per-vendor dev-mode listener ports
 VENDOR_TARGETS: Dict[str, Dict[str, str]] = {
@@ -417,6 +417,12 @@ VENDOR_TARGETS: Dict[str, Dict[str, str]] = {
         # All four locations are exposed in the UI; CDVL/SIFY both hit
         # 5214 and BCP/UAT both hit 5215 — the listener tags the alert
         # with the correct `environment` based on the switch name.
+        "CDVL": "127.0.0.1:5214",
+        "SIFY": "127.0.0.1:5214",
+        "BCP":  "127.0.0.1:5215",
+        "UAT":  "127.0.0.1:5215",
+    },
+    "SANnav": {
         "CDVL": "127.0.0.1:5214",
         "SIFY": "127.0.0.1:5214",
         "BCP":  "127.0.0.1:5215",
@@ -440,6 +446,21 @@ VENDOR_TARGETS: Dict[str, Dict[str, str]] = {
 # identity for every IP we send from.
 VENDOR_STORAGE_IPS: Dict[str, Dict[str, Dict[str, str]]] = {
     "Hitachi": LOCATION_IP_MAP,
+    "SANnav": {
+        "CDVL": {
+            "10.66.12.197":   "CDVL_7840_HUR_FAB1",
+            "10.66.12.198":   "CDVL_7840_HUR_FAB2",
+        },
+        "SIFY": {
+            "10.226.79.134":  "SIFY_7840_HUR_FAB1",
+        },
+        "BCP": {
+            "10.65.4.8":      "BCP_7840_HUR_FAB1",
+        },
+        "UAT": {
+            "10.65.15.147":   "UAT_7840_HUR_FAB1",
+        }
+    },
     "Brocade": {
         "CDVL": {
             "10.66.12.197":   "CDVL_7840_HUR_FAB1",
@@ -585,6 +606,8 @@ VENDOR_CATALOGUES: Dict[str, List[Tuple[str, str, str]]] = {
         # ---- Port Swap / Support Save -----------------------------------
         ("Serious",  "PSWP-1005", "Port swap operation failed"),
         ("Moderate", "SS-1001",   "Support save started"),
+    ],
+    "SANnav": [
         # ---- SANnav -----------------------------------------------------
         ("Serious",  "SSMP-AUTH-1025", "SANnav authentication failure - max retries"),
         ("Moderate", "SSMP-AUDIT-1100","SANnav audit event - config change"),
@@ -736,6 +759,28 @@ def build_brocade_packet(
     return msg.encode("utf-8")
 
 
+def build_sannav_packet(
+    *, source_ip: str, array_name: str, severity: str,
+    refcode: str, text: str, seq: int,
+) -> bytes:
+    """SANnav specific syslog event (alarms, events, violations)."""
+    pri = SYSLOG_PRI_FOR_SEVERITY.get(severity, 132)
+    now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sannav_ts = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    sd = (
+        f"[timestamp@1588 value=\"{sannav_ts}\"]"
+        f"[msgid@1588 value=\"{refcode}\"]"
+        f"[severity@1588 value=\"{_SEV_WORD.get(severity, 'WARNING')}\"]"
+        f"[swname@1588 value=\"{array_name}\"]"
+        f"[swip@1588 value=\"{source_ip}\"]"
+    )
+    msg = (
+        f"[SOURCE_IP={source_ip}] "
+        f"<{pri}>1 {now} sannav-fwd SVCFM SANNAV - {sd} \ufeff{text}"
+    )
+    return msg.encode("utf-8")
+
+
 def build_netapp_packet(
     *, source_ip: str, array_name: str, severity: str,
     refcode: str, text: str, seq: int,
@@ -773,6 +818,7 @@ def build_dell_packet(
 VENDOR_BUILDERS = {
     "Hitachi": None,  # Uses build_packet() directly (needs envelope/rfc args)
     "Brocade": build_brocade_packet,
+    "SANnav":  build_sannav_packet,
     "NetApp":  build_netapp_packet,
     "Dell":    build_dell_packet,
 }
@@ -791,16 +837,20 @@ def build_packet_for_vendor(
     rfc5424: bool = True,
     hostname: str = "hitachi-trap",
 ) -> bytes:
-    """Dispatch to the right packet builder per vendor."""
+    """Wrapper that delegates to the appropriate builder function."""
     if vendor == "Hitachi":
         return build_packet(
             source_ip=source_ip, array_name=array_name, severity=severity,
             refcode=refcode, text=text, seq=seq,
-            use_gum_envelope=use_gum_envelope, rfc5424=rfc5424, hostname=hostname,
+            use_gum_envelope=use_gum_envelope,
+            rfc5424=rfc5424,
+            hostname=hostname,
         )
+    
     builder = VENDOR_BUILDERS.get(vendor)
-    if builder is None:
-        raise ValueError(f"Unknown vendor: {vendor!r}")
+    if not builder:
+        raise ValueError(f"Unknown vendor {vendor}")
+    
     return builder(
         source_ip=source_ip, array_name=array_name, severity=severity,
         refcode=refcode, text=text, seq=seq,
@@ -1038,3 +1088,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

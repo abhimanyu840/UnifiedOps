@@ -69,6 +69,9 @@ INFLUX_URL    = os.environ.get("HITRACK_INFLUX_URL",    "http://127.0.0.1:8086")
 INFLUX_TOKEN  = os.environ.get("HITRACK_INFLUX_TOKEN",  "hitrack-dev-token-please-change")
 INFLUX_ORG    = os.environ.get("HITRACK_INFLUX_ORG",    "HDFC")
 INFLUX_BUCKET = os.environ.get("HITRACK_INFLUX_BUCKET", "SYSLOG_BRCD_CDVL_SIFY_Bucket")
+INFLUX_REPORT_URL = os.environ.get("HITRACK_INFLUX_REPORT_URL", "")
+INFLUX_REPORT_TOKEN = os.environ.get("HITRACK_INFLUX_REPORT_TOKEN", "")
+INFLUX_BUCKET_REPORT = os.environ.get("HITRACK_INFLUX_REPORT_BUCKET", f"unified-ops-bucket-health-check-report-{LOCATION.lower()}")
 
 LISTEN_HOST = os.environ.get("HITRACK_LISTEN_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("HITRACK_LISTEN_PORT", "515"))
@@ -1057,9 +1060,10 @@ def parse_syslog(raw, source_ip):
 # ---------------------------------------------------------------------------
 
 class InfluxWriter:
-    def __init__(self):
+    def __init__(self, url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, bucket=INFLUX_BUCKET):
+        self.bucket = bucket
         self.client = InfluxDBClient(
-            url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, verify_ssl=False
+            url=url, token=token, org=org, verify_ssl=False
         )
         if WRITE_BATCH:
             opts = WriteOptions(
@@ -1072,13 +1076,13 @@ class InfluxWriter:
             log.info(
                 "InfluxDB client initialised -> %s (bucket=%s) "
                 "[batch=%d flush_ms=%d]",
-                INFLUX_URL, INFLUX_BUCKET, WRITE_BATCH_SIZE, WRITE_FLUSH_MS,
+                INFLUX_URL, bucket, WRITE_BATCH_SIZE, WRITE_FLUSH_MS,
             )
         else:
             self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
             log.info(
                 "InfluxDB client initialised -> %s (bucket=%s) [SYNCHRONOUS]",
-                INFLUX_URL, INFLUX_BUCKET,
+                url, bucket,
             )
 
     def write(self, measurement, source_ip, fields):
@@ -1131,15 +1135,9 @@ class InfluxWriter:
                 point = point.field(key, val)
 
         try:
-            self.write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-            log.debug(
-                "Written -> %s [%s] sev=%s cat=%s switch=%s id=%s",
-                measurement, source_ip,
-                fields.get("severity"), fields.get("trap_category"),
-                fields.get("switch_name"), fields.get("alert_id"),
-            )
+            self.write_api.write(bucket=self.bucket, org=INFLUX_ORG, record=point)
         except Exception as exc:
-            log.error("InfluxDB write to %s failed: %s", INFLUX_BUCKET, exc)
+            log.error("InfluxDB write to %s failed: %s", self.bucket, exc)
 
     def close(self):
         self.client.close()
@@ -1150,9 +1148,10 @@ class InfluxWriter:
 # ---------------------------------------------------------------------------
 
 class UDPSyslogListener(threading.Thread):
-    def __init__(self, writer, pool):
+    def __init__(self, writer, report_writer, pool):
         super().__init__(daemon=True, name="UDPSyslogListener")
         self.writer = writer
+        self.report_writer = report_writer
         self.pool = pool
 
     def run(self):
@@ -1205,7 +1204,11 @@ class UDPSyslogListener(threading.Thread):
             (fields.get("fos_message") or fields.get("message", "") or "")[:120],
         )
 
-        self.writer.write(measurement, source_ip, fields)
+        vendor = fields.get("vendor")
+        if vendor == "sannav" and self.report_writer:
+            self.report_writer.write(measurement, source_ip, fields)
+        elif vendor == "brocade":
+            self.writer.write(measurement, source_ip, fields)
 
 
 # ---------------------------------------------------------------------------
@@ -1213,9 +1216,11 @@ class UDPSyslogListener(threading.Thread):
 # ---------------------------------------------------------------------------
 
 class TCPSyslogListener(threading.Thread):
-    def __init__(self, writer):
+    def __init__(self, writer, report_writer, pool):
         super().__init__(daemon=True, name="TCPSyslogListener")
-        self.writer = writer
+        self.influx_writer = writer
+        self.report_writer = report_writer
+        self.pool = pool
 
     def run(self):
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1311,6 +1316,14 @@ def main():
         log.warning("SANNAV_SOURCES is empty - every incoming packet will be dropped.")
 
     writer = InfluxWriter()
+    report_writer = None
+    if INFLUX_REPORT_URL and INFLUX_REPORT_TOKEN:
+        report_writer = InfluxWriter(
+            url=INFLUX_REPORT_URL,
+            token=INFLUX_REPORT_TOKEN,
+            org=INFLUX_ORG,
+            bucket=INFLUX_BUCKET_REPORT
+        )
 
     _start_heartbeat()
 
@@ -1319,8 +1332,8 @@ def main():
         thread_name_prefix="syslog-worker",
     )
 
-    udp = UDPSyslogListener(writer, pool)
-    tcp = TCPSyslogListener(writer)
+    udp = UDPSyslogListener(writer, report_writer, pool)
+    tcp = TCPSyslogListener(writer, report_writer, pool)
 
     udp.start()
     tcp.start()

@@ -21,6 +21,7 @@ async def download_report(
     site: Optional[List[str]] = Query(None, description="Filter by sites (e.g. CDVL, BCP)"),
     vendor: Optional[List[str]] = Query(None, description="Filter by vendor (e.g. hitachi, brocade)"),
     format: str = Query("csv", description="Format: csv, xlsx, pdf"),
+    report_type: str = Query("hardware", description="hardware or health_check"),
 ) -> Response:
     if _svc is None:
         return Response(status_code=503, content="ReportService not configured")
@@ -29,10 +30,14 @@ async def download_report(
         range_key=range,
         sites=site,
         vendors=vendor,
-        fmt=format
+        fmt=format,
+        report_type=report_type,
     )
     
-    filename = f"unifiedops_alerts_{range}.{ext}"
+    import datetime
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    name_prefix = "health_check_report" if report_type == "health_check" else "hardware_alerts"
+    filename = f"unifiedops_{name_prefix}_{range}_{timestamp}.{ext}"
     
     return Response(
         content=content,

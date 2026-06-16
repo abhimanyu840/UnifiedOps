@@ -65,7 +65,7 @@ if [[ ! -f "$ETC_DIR/ui.env" ]]; then
 fi
 
 echo "==> systemd unit files"
-for u in unifiedops-ui-server unifiedops-health-check; do
+for u in unifiedops-ui-server unifiedops-listener@; do
     src="$APP_DIR/deploy/${u}.service"
     if [[ -f "$src" ]]; then
         install -m 0644 "$src" "$UNIT_DIR/${u}.service"
@@ -84,13 +84,15 @@ App:   $APP_DIR
 Env:   $ETC_DIR/ui.env       <-- EDIT before starting services
 Logs:  /var/log/unifiedops
 
-Next:
+Next (UI VM):
     sudo \$EDITOR $ETC_DIR/ui.env
     sudo systemctl enable --now unifiedops-ui-server
-    sudo systemctl enable --now unifiedops-health-check
+
+Next (Listener VM):
+    sudo \$EDITOR $ETC_DIR/listener-syslog_trap_listener_bcp.env
+    sudo systemctl enable --now unifiedops-listener@syslog_trap_listener_bcp
 
 Logs:
     sudo journalctl -u unifiedops-ui-server -f
-    sudo journalctl -u unifiedops-health-check -f
-
+    sudo journalctl -u unifiedops-listener@syslog_trap_listener_bcp -f
 EOF

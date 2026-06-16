@@ -20,6 +20,7 @@ const toLocalInput = (d: Date): string => {
 
 export function ReportPanel() {
   const [isOpen, setIsOpen]         = useState(false);
+  const [reportType, setReportType] = useState<'hardware' | 'health_check'>('hardware');
 
   /* ---- Time Range ---- */
   const [rangeMode, setRangeMode]   = useState<'relative' | 'custom'>('relative');
@@ -136,6 +137,7 @@ export function ReportPanel() {
     selectedSites.forEach(s => params.append('site', s));
     selectedVendors.forEach(v => params.append('vendor', v));
     params.append('format', format);
+    params.append('report_type', reportType);
     window.open(`/api/reports/download?${params.toString()}`, '_blank');
   };
 
@@ -216,6 +218,56 @@ export function ReportPanel() {
 
               {/* ---- Body ---- */}
               <div className="rp-body">
+                {/* Report Type Toggle */}
+                <div className="rp-field">
+                  <div className="seg-control" style={{ display: 'flex', background: 'var(--bg-card)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-soft)', position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => setReportType('hardware')}
+                      style={{
+                        flex: 1, padding: '8px 12px', fontSize: '13px', border: 'none', cursor: 'pointer',
+                        background: 'transparent',
+                        color: reportType === 'hardware' ? 'var(--bg-main)' : 'var(--text-dim)',
+                        fontWeight: reportType === 'hardware' ? 600 : 400,
+                        position: 'relative',
+                        zIndex: 1,
+                        transition: 'color 0.2s ease'
+                      }}
+                    >
+                      {reportType === 'hardware' && (
+                        <motion.div
+                          layoutId="active-report-type"
+                          style={{ position: 'absolute', inset: 0, background: 'var(--primary)', borderRadius: '6px', zIndex: -1 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                      Hardware Alerts
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportType('health_check')}
+                      style={{
+                        flex: 1, padding: '8px 12px', fontSize: '13px', border: 'none', cursor: 'pointer',
+                        background: 'transparent',
+                        color: reportType === 'health_check' ? 'var(--bg-main)' : 'var(--text-dim)',
+                        fontWeight: reportType === 'health_check' ? 600 : 400,
+                        position: 'relative',
+                        zIndex: 1,
+                        transition: 'color 0.2s ease'
+                      }}
+                    >
+                      {reportType === 'health_check' && (
+                        <motion.div
+                          layoutId="active-report-type"
+                          style={{ position: 'absolute', inset: 0, background: 'var(--primary)', borderRadius: '6px', zIndex: -1 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                      Health Check Report
+                    </button>
+                  </div>
+                </div>
+
                 {/* Time Range */}
                 <div className="rp-field">
                   <span className="rp-field__label">Time Range</span>
@@ -452,7 +504,7 @@ export function ReportPanel() {
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
-                  <span>{canDownload ? `Download ${format.toUpperCase()} Report` : 'Select filters'}</span>
+                  <span>{canDownload ? `Download ${format.toUpperCase()} ${reportType === 'health_check' ? 'Health Check' : 'Alerts'}` : 'Select filters'}</span>
                 </button>
               </div>
             </motion.div>

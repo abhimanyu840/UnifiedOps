@@ -5,7 +5,7 @@
 - **Username**: abhim
 - **Python command**: Use `python` not `python3`
 - **Paths**: Always use backslashes in file paths
-- **Never use Unix commands** — use PowerShell equivalents only:
+- **Never use Unix commands** — PowerShell equivalents only:
   - `New-Item` not `touch`
   - `Get-ChildItem` not `ls`
   - `Get-Content` not `cat`
@@ -29,9 +29,10 @@
   (`syslog_trap_listener_cdvl.py`, `_bcp.py`, `_sify.py`)
 - `frontend/` — React components, Vite config, frontend assets
 - `scripts/`  — Deployment, build, and utility PowerShell scripts
-- `deploy/`   — Deployment instructions, TLS setup, InfluxDB setup scripts
+- `deploy/`   — Deployment instructions, TLS setup, InfluxDB setup
 - `private/`  — Credentials, tokens, certs — NEVER committed to git
-- `docs/`     — Vendor manuals, RAG source files, runbooks
+- `docs/`     — Vendor PDFs and manuals for RAG indexing
+  (Hitachi VSP, NetApp ONTAP, Brocade FOS, Dell PowerStore)
 
 When creating new files always ask: which folder does this belong in?
 Never create files outside the project root.
@@ -41,8 +42,8 @@ Never create files outside the project root.
 ### Python
 - Follow PEP 8 strictly
 - Always use `from __future__ import annotations` at top of every file
-- Always use explicit typing: `Dict`, `List`, `Optional`, `Tuple`, `Any`
-  from `typing` — never use `dict`, `list` etc. directly (Python 3.9)
+- Always use explicit typing from `typing`:
+  `Dict`, `List`, `Optional`, `Tuple`, `Any` — never `dict`, `list` etc.
 - Use `asyncio` for all FastAPI routes and WebSocket handlers
 - Use `ThreadPoolExecutor` for all blocking InfluxDB calls
 - Use `WsHub` class pattern for all WebSocket management
@@ -58,31 +59,30 @@ Never create files outside the project root.
 ### Listeners
 - Keep listener scripts flat and self-contained per location
 - No imports that cross-contaminate `_cdvl`, `_bcp`, `_sify` logic
-- Do not add complex abstractions — listeners must be readable standalone
+- Listeners must be readable as standalone scripts
+
+## MCP Servers Available
+These MCP servers are registered and active in Antigravity:
+
+| Server | Trigger | Use for |
+|---|---|---|
+| ollama | @qwen @gemma @vision @screenshot | Local models, private work |
+| nvidia-llm-router | @route | Auto-pick best NIM model |
+| nvidia-aiq | @aiq | Deep research, vendor doc questions |
+| nvidia-rag | @rag | Search indexed vendor PDFs in docs\ |
 
 ## NVIDIA NIM Usage Rules
-- NVIDIA NIM (`integrate.api.nvidia.com`) is cloud infrastructure
-- Apply same privacy rules as Antigravity cloud for all NIM requests:
-  - Never send `private\` files to NIM
-  - Never send credentials, tokens, IPs, or `.env` content to NIM
-  - Never send SAN configs, LUN mappings, or array credentials to NIM
-  - NIM is for coding and reasoning tasks only
-- Available NIM providers in this project:
-  - `nvidia-coder`   — qwen3-coder:480b    — frontier coding fallback
-  - `nvidia-reason`  — deepseek-r1:671b    — deep reasoning fallback
-  - `nvidia-fast`    — minimax-m2.7        — general tasks fallback
-  - `nvidia-context` — deepseek-v4-flash   — 1M context, large files/PDFs
-  - `nvidia-vision`  — gemma4:e4b          — cloud vision, diagrams
-  - `nvidia-embed`   — nv-embedqa-e5-v5    — RAG embeddings for vendor docs
+- NVIDIA NIM is cloud infrastructure — same privacy rules as Antigravity
+- Never send `private\` files, credentials, IPs, or `.env` to NIM
+- Never send SAN configs, LUN mappings, or array credentials to NIM
+- Use @route when unsure which NIM model to use — it auto-selects
 
-## RAG / PDF Workflow
-- Use `nvidia-context` (deepseek-v4-flash) for one-off large PDF queries
-- For repeated vendor doc queries, build local RAG:
-  - Extract with: `pymupdf`
-  - Embed with: `nvidia-embed` or local `nomic-embed-text`
-  - Store in: `chromadb`
-  - Query results passed to: `@qwen` or `@gemma`
-- Store vendor PDFs in `docs/` folder — never in `private\`
+## RAG / Vendor PDF Workflow
+- Put all vendor PDFs in `docs\` folder
+- Index once: `python nvidia_rag_mcp.py --index`
+- Then use `@rag` for any vendor doc question in Antigravity chat
+- For one-off large PDF: use nvidia-context (deepseek-v4-flash, 1M tokens)
+- For repeated queries: always use @rag (faster, cited, no credit cost)
 
 ## What NOT to Auto-Run
 - **Tests**: Do NOT run unit or integration tests automatically
@@ -93,12 +93,9 @@ Never create files outside the project root.
   system requires offline RPM/wheel bundling
 - **Bulk edits**: Always show a diff or file list before editing
   multiple files at once
-- **Outside project root**: Never create or modify files outside
-  the project root directory
+- **Outside root**: Never create or modify files outside project root
 
 ## Git Commit Conventions
-Always use conventional commits:
-
 - `feat:`     — new features     (`feat: add BCP listener support`)
 - `fix:`      — bug fixes        (`fix: resolve websocket connection drop`)
 - `refactor:` — restructuring    (`refactor: extract influx pool to service`)
@@ -107,4 +104,4 @@ Always use conventional commits:
 
 **Always commit after completing every task.**
 **Never commit files from `private\` directory.**
-**Verify `private\` is in `.gitignore` before first commit.**
+**Verify `private\` and `.env` are in `.gitignore` before first commit.**

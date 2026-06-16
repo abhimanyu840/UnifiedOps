@@ -32,8 +32,8 @@ export function Header({
     <header className="header">
       <div className="header__left">
         <div className="brand-group">
-          <img src="public/wipro.png" alt="Wipro" className="brand brand--wipro" />
-          <img src="public/hdfc.png" alt="HDFC Bank" className="brand brand--hdfc" />
+          <img src="/wipro.png" alt="Wipro" className="brand brand--wipro" />
+          <img src="/hdfc.png" alt="HDFC Bank" className="brand brand--hdfc" />
         </div>
       </div>
 

@@ -7,7 +7,7 @@ import {
 import { Toaster, toast } from 'sonner';
 import { api, type CatalogueEntry, type LocationInfo, type Vendor } from './api';
 
-type Tab = 'manual' | 'schedule';
+type Tab = 'manual' | 'schedule' | 'sannav';
 
 const DEFAULT_VENDOR = 'Hitachi';
 
@@ -139,14 +139,24 @@ export default function App() {
           <Sparkles size={14} />
           Schedule
         </button>
+        <button
+          type="button"
+          className={`tab ${tab === 'sannav' ? 'tab--active' : ''}`}
+          onClick={() => { setTab('sannav'); setVendor('SANnav'); }}
+        >
+          <ShieldAlert size={14} />
+          SANnav Events
+        </button>
       </nav>
 
       <section className="picker">
-        <Field label="Vendor">
-          <select value={vendor} onChange={(e) => setVendor(e.target.value)}>
-            {vendors.map(v => <option key={v.vendor} value={v.vendor}>{v.vendor}</option>)}
-          </select>
-        </Field>
+        {tab !== 'sannav' && (
+          <Field label="Vendor">
+            <select value={vendor} onChange={(e) => setVendor(e.target.value)}>
+              {vendors.filter(v => v.vendor !== 'SANnav').map(v => <option key={v.vendor} value={v.vendor}>{v.vendor}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Location">
           <select value={location} onChange={(e) => setLocation(e.target.value)}>
             {availableLocations.map(l => <option key={l} value={l}>{l}</option>)}
@@ -233,6 +243,20 @@ export default function App() {
             className="panel"
           >
             <SchedulePanel onSendNow={sendOnce} />
+          </motion.section>
+        ) : (
+          <motion.section
+            key="sannav"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{    opacity: 0, y: -4 }}
+            transition={{ duration: 0.18 }}
+            className="panel"
+          >
+            <div className="panel__body" style={{ marginBottom: '1rem', color: 'var(--cyan-400)' }}>
+              <p>Sending SANnav Alarms, Events, and Violations to the Health Check Report buckets.</p>
+            </div>
+            <ManualPanel sending={sending} onSend={sendOnce} />
           </motion.section>
         )}
       </AnimatePresence>
