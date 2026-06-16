@@ -8,7 +8,24 @@ Type=simple
 User=unifiedops
 Group=unifiedops
 WorkingDirectory=/opt/unifiedops
-EnvironmentFile=/etc/unifiedops/listener-brcd-bcp-uat.env
+
+# Environment variables
+Environment="HITRACK_INFLUX_URL=http://127.0.0.1:8086"
+Environment="HITRACK_INFLUX_TOKEN=hitrack-dev-token-please-change"
+Environment="HITRACK_INFLUX_ORG=HDFC"
+Environment="HITRACK_INFLUX_BUCKET=SYSLOG_BRCD_BCP_UAT_Bucket"
+Environment="HITRACK_INFLUX_REPORT_URL=http://127.0.0.1:8086"
+Environment="HITRACK_INFLUX_REPORT_TOKEN=hitrack-dev-token-please-change"
+Environment="HITRACK_INFLUX_REPORT_BUCKET=unifiedops-influx-health-report-bcp"
+Environment="HITRACK_LISTEN_HOST=0.0.0.0"
+Environment="HITRACK_LISTEN_PORT=515"
+Environment="HITRACK_WORKER_THREADS=16"
+Environment="HITRACK_WRITE_BATCH=true"
+Environment="HITRACK_WRITE_BATCH_SIZE=200"
+Environment="HITRACK_WRITE_FLUSH_MS=1000"
+Environment="HITRACK_WRITE_RETRY_MS=1000"
+Environment="HITRACK_TEST_MODE=false"
+
 ExecStart=/usr/bin/python3 /opt/unifiedops/listener/syslog_trap_listener_bcp_n_uat.py
 Restart=on-failure
 RestartSec=4
