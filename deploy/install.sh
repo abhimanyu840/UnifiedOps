@@ -63,9 +63,19 @@ if [[ ! -f "$ETC_DIR/ui.env" ]]; then
         "$APP_DIR/deploy/unifiedops-ui.env.example" "$ETC_DIR/ui.env"
     echo "   wrote $ETC_DIR/ui.env (copy of example) — EDIT TOKENS BEFORE STARTING SERVICES"
 fi
+if [[ ! -f "$ETC_DIR/listener-brcd-bcp-uat.env" ]]; then
+    install -m 0640 -o unifiedops -g unifiedops \
+        "$APP_DIR/deploy/listener-brcd-bcp-uat.env.example" "$ETC_DIR/listener-brcd-bcp-uat.env"
+    echo "   wrote $ETC_DIR/listener-brcd-bcp-uat.env"
+fi
+if [[ ! -f "$ETC_DIR/listener-brcd-cdvl-sify.env" ]]; then
+    install -m 0640 -o unifiedops -g unifiedops \
+        "$APP_DIR/deploy/listener-brcd-cdvl-sify.env.example" "$ETC_DIR/listener-brcd-cdvl-sify.env"
+    echo "   wrote $ETC_DIR/listener-brcd-cdvl-sify.env"
+fi
 
 echo "==> systemd unit files"
-for u in unifiedops-ui-server unifiedops-listener@; do
+for u in unifiedops-ui-server unifiedops-listener-brcd-bcp-uat unifiedops-listener-brcd-cdvl-sify; do
     src="$APP_DIR/deploy/${u}.service"
     if [[ -f "$src" ]]; then
         install -m 0644 "$src" "$UNIT_DIR/${u}.service"
@@ -88,11 +98,16 @@ Next (UI VM):
     sudo \$EDITOR $ETC_DIR/ui.env
     sudo systemctl enable --now unifiedops-ui-server
 
-Next (Listener VM):
-    sudo \$EDITOR $ETC_DIR/listener-syslog_trap_listener_bcp.env
-    sudo systemctl enable --now unifiedops-listener@syslog_trap_listener_bcp
+Next (Listener VM - BCP + UAT):
+    sudo \$EDITOR $ETC_DIR/listener-brcd-bcp-uat.env
+    sudo systemctl enable --now unifiedops-listener-brcd-bcp-uat
+
+Next (Listener VM - CDVL + SIFY):
+    sudo \$EDITOR $ETC_DIR/listener-brcd-cdvl-sify.env
+    sudo systemctl enable --now unifiedops-listener-brcd-cdvl-sify
 
 Logs:
-    sudo journalctl -u unifiedops-ui-server -f
-    sudo journalctl -u unifiedops-listener@syslog_trap_listener_bcp -f
+    sudo journalctl -u unifiedops-listener-brcd-bcp-uat -f
+    sudo journalctl -u unifiedops-listener-brcd-cdvl-sify -f
 EOF
+

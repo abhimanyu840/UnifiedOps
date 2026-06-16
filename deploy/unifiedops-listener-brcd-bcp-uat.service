@@ -1,0 +1,26 @@
+[Unit]
+Description=UnifiedOps v2 Brocade BCP & UAT Syslog Listener
+After=network-online.target influxdb.service
+Wants=network-online.target influxdb.service
+
+[Service]
+Type=simple
+User=unifiedops
+Group=unifiedops
+WorkingDirectory=/opt/unifiedops
+EnvironmentFile=/etc/unifiedops/listener-brcd-bcp-uat.env
+ExecStart=/usr/bin/python3 /opt/unifiedops/listener/syslog_trap_listener_bcp_n_uat.py
+Restart=on-failure
+RestartSec=4
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/unifiedops
+
+[Install]
+WantedBy=multi-user.target

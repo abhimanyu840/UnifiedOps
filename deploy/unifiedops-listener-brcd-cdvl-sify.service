@@ -1,0 +1,26 @@
+[Unit]
+Description=UnifiedOps v2 Brocade CDVL & SIFY Syslog Listener
+After=network-online.target influxdb.service
+Wants=network-online.target influxdb.service
+
+[Service]
+Type=simple
+User=unifiedops
+Group=unifiedops
+WorkingDirectory=/opt/unifiedops
+EnvironmentFile=/etc/unifiedops/listener-brcd-cdvl-sify.env
+ExecStart=/usr/bin/python3 /opt/unifiedops/listener/syslog_trap_listener_cdvl_n_sify.py
+Restart=on-failure
+RestartSec=4
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/unifiedops
+
+[Install]
+WantedBy=multi-user.target
