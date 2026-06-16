@@ -477,6 +477,21 @@ BRCD_MODULE_LABEL = {
     "SS":   "System Services / Support Save",
     "PSWP": "Port Swap",
     "PLAT": "Platform",
+    "MAPS": "Monitoring and Alerting Policy Suite",
+    "SEC":  "Security",
+    "AUDIT": "Audit",
+    "LOG":  "Logging",
+    "FICON": "FICON Channel",
+    "FCIP": "FCIP Tunnel",
+    "IPADM": "IP Address Management",
+    "RAS":  "RAS Subsystem",
+    "ZONE": "Zoning",
+    "FABRIC": "Fabric Services",
+    "SNMP": "SNMP",
+    "SYS":  "System",
+    "SEC2": "Extended Security",
+    "FSSM": "Firmware State Manager",
+    "AUTH": "Authentication",
 }
 
 # Module -> default trap category. Overridden by BRCD_KEYWORD_PATTERNS when
@@ -497,6 +512,21 @@ BRCD_MODULE_CATEGORY = {
     "SS":   "support_save",
     "PSWP": "port_swap",
     "PLAT": "platform_event",
+    "MAPS": "maps_violation",
+    "SEC":  "security_event",
+    "AUDIT": "audit_log",
+    "LOG":  "log_event",
+    "FICON": "ficon_event",
+    "FCIP": "fcip_event",
+    "IPADM": "ip_event",
+    "RAS":  "ras_event",
+    "ZONE": "zone_event",
+    "FABRIC": "fabric_event",
+    "SNMP": "snmp_event",
+    "SYS":  "system_event",
+    "SEC2": "security_event",
+    "FSSM": "firmware_alert",
+    "AUTH": "auth_failure",
 }
 
 # SANnav management-plane msgid prefixes -> default category. Lookup is
@@ -507,6 +537,7 @@ SANNAV_MODULE_CATEGORY = {
     "SSMP-AUDIT":   "audit_log",
     "SSMP-USER":    "auth_event",
     "SSMP-LICENSE": "license_alert",
+    "SSMP-PERF":    "sannav_performance",
     "SSMP":         "sannav_event",
     "NOS":          "sannav_event",
     "SVCNAVIGATOR": "sannav_event",
@@ -752,6 +783,14 @@ BRCD_ALERT_SEVERITY: dict[str, str] = {
     "SS-1009": "WARNING", "SS-1010": "INFO", "SS-1011": "INFO",
     "SS-1012": "INFO", "SS-1013": "INFO", "SS-1014": "INFO",
     "SS-1015": "INFO", "SS-1016": "INFO",
+
+    # MAPS monitoring alerts (Alarms / Events / Violations)
+    "MAPS-1001": "CRITICAL", "MAPS-1002": "WARNING",
+    "MAPS-1003": "WARNING", "MAPS-1004": "INFO",
+
+    # Security audit
+    "SEC-3020": "INFO", "SEC-3022": "WARNING",
+    "SEC-3023": "WARNING", "SEC-3024": "WARNING",
 }
 
 
@@ -776,8 +815,19 @@ ALL_BRCD_CATEGORIES = (
     set(BRCD_MODULE_CATEGORY.values())
     | set(SANNAV_MODULE_CATEGORY.values())
     | {cat for cat, _ in BRCD_KEYWORD_PATTERNS}
-    | {"sannav_event", "other"}
+    | {"sannav_event", "sannav_performance", "other"}
 )
+
+# Categories that represent physical hardware faults. These go to the
+# main alert bucket (dashboard). Everything else goes to the report bucket.
+HARDWARE_CATEGORIES = {
+    "hardware_event", "environmental_event", "blade_event",
+    "chassis_event", "fan_failure", "fan_missing",
+    "temperature_alarm", "voltage_alert", "power_failure",
+    "optic_alert", "battery_alert", "blade_fault",
+    "chassis_alert", "fru_event", "env_warning",
+    "airflow_alert",
+}
 
 
 def classify_brcd_category(module, message_text):
@@ -1192,10 +1242,14 @@ class UDPSyslogListener(threading.Thread):
         )
 
         vendor = fields.get("vendor")
-        if vendor == "sannav" and self.report_writer:
-            self.report_writer.write(measurement, source_ip, fields)
-        elif vendor == "brocade":
+        category = fields.get("trap_category", "")
+
+        if vendor == "brocade" and category in HARDWARE_CATEGORIES:
+            # Physical switch hardware faults → main alert bucket
             self.writer.write(measurement, source_ip, fields)
+        elif self.report_writer:
+            # Everything else (MAPS, events, security, SANnav) → report bucket
+            self.report_writer.write(measurement, source_ip, fields)
 
 
 # ---------------------------------------------------------------------------
@@ -1270,7 +1324,12 @@ class TCPSyslogListener(threading.Thread):
                         fields.get("trap_category", "?"),
                         (fields.get("fos_message") or fields.get("message", "") or "")[:120],
                     )
-                    self.writer.write(line_measurement, effective_ip, fields)
+                    vendor = fields.get("vendor")
+                    category = fields.get("trap_category", "")
+                    if vendor == "brocade" and category in HARDWARE_CATEGORIES:
+                        self.influx_writer.write(line_measurement, effective_ip, fields)
+                    elif self.report_writer:
+                        self.report_writer.write(line_measurement, effective_ip, fields)
         except Exception as exc:
             log.error("TCP client error (%s): %s", source_ip, exc)
         finally:
