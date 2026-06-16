@@ -27,7 +27,7 @@ const LOC_COLOR: Record<Location | 'ALL', { from: string; to: string; dot: strin
 
 export function TopSystemsCard({
   systems,
-  topN = 9,
+  topN = 100,
   selectedLocations,
   allLocations,
   onLocationsChange,
