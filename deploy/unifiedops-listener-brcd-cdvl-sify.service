@@ -26,7 +26,7 @@ Environment="HITRACK_WRITE_FLUSH_MS=1000"
 Environment="HITRACK_WRITE_RETRY_MS=1000"
 Environment="HITRACK_TEST_MODE=false"
 
-ExecStart=/usr/bin/python3 /opt/unifiedops/listener/syslog_trap_listener_cdvl_n_sify.py
+ExecStart=/usr/bin/python /opt/unifiedops/listener/syslog_trap_listener_cdvl_n_sify.py
 Restart=on-failure
 RestartSec=4
 StandardOutput=journal

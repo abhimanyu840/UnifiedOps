@@ -1166,7 +1166,7 @@ class InfluxWriter:
                 point = point.field(key, val)
 
         try:
-            self.write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+            self.write_api.write(bucket=self.bucket, org=INFLUX_ORG, record=point)
             log.debug(
                 "Written -> %s [%s] sev=%s cat=%s switch=%s id=%s",
                 measurement, source_ip,
@@ -1174,7 +1174,7 @@ class InfluxWriter:
                 fields.get("switch_name"), fields.get("alert_id"),
             )
         except Exception as exc:
-            log.error("InfluxDB write to %s failed: %s", INFLUX_BUCKET, exc)
+            log.error("InfluxDB write to %s failed: %s", self.bucket, exc)
 
     def close(self):
         self.client.close()
