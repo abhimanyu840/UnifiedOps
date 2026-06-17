@@ -1080,6 +1080,8 @@ def parse_syslog(raw, source_ip):
         fields["fos_switch_name"]  = alert["fos_switch_name"]
         fields["trap_category"]    = alert["trap_category"]
         fields["username"]         = alert.get("username", "") or ""
+        if not fields.get("message") and alert.get("fos_message"):
+            fields["message"] = alert["fos_message"]
         for cat in ALL_BRCD_CATEGORIES:
             fields[f"trap_{cat}"] = (cat == alert["trap_category"])
     else:
