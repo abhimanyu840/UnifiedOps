@@ -105,6 +105,13 @@ logging.basicConfig(
 )
 log = logging.getLogger("syslog_trap_listener_bcp_n_uat")
 
+raw_log = logging.getLogger("raw_syslog_bcp_n_uat")
+raw_log.setLevel(logging.INFO)
+raw_fh = logging.FileHandler("syslog_trap_listener_bcp_n_uat_raw_syslog_data.log")
+raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+raw_log.addHandler(raw_fh)
+raw_log.propagate = False
+
 # ---------------------------------------------------------------------------
 # Heartbeat — inline per-listener
 # ---------------------------------------------------------------------------
@@ -508,6 +515,7 @@ BRCD_MODULE_CATEGORY = {
     "FV":   "flow_vision",
     "BM":   "blade_manager",
     "PMGR": "port_manager",
+    "HC":   "health_check",
     "PDM":  "pdm_event",
     "SS":   "support_save",
     "PSWP": "port_swap",
@@ -826,9 +834,10 @@ HARDWARE_CATEGORIES = {
     "temperature_alarm", "voltage_alert", "power_failure",
     "optic_alert", "battery_alert", "blade_fault",
     "chassis_alert", "fru_event", "env_warning",
-    "airflow_alert",
+    "airflow_alert", "ntp_alert", "fips_alert", "license_alert",
+    "auth_failure", "wwn_alert", "firmware_alert", "flow_vision",
+    "config_change", "ha_alert", "port_fault",
 }
-
 
 def classify_brcd_category(module, message_text):
     text = message_text or ""
@@ -1063,11 +1072,13 @@ def parse_syslog(raw, source_ip):
         fields["username"]         = alert.get("username", "") or ""
         if not fields.get("message") and alert.get("fos_message"):
             fields["message"] = alert["fos_message"]
+        fields["error_message"]    = alert.get("fos_message") or msg_text or raw_text
         for cat in ALL_BRCD_CATEGORIES:
             fields[f"trap_{cat}"] = (cat == alert["trap_category"])
     else:
         fields["vendor"]        = fields.get("vendor", "generic")
         fields["trap_category"] = "none"
+        fields["error_message"] = msg_text or raw_text
         for cat in ALL_BRCD_CATEGORIES:
             fields.setdefault(f"trap_{cat}", False)
 
@@ -1144,7 +1155,7 @@ class InfluxWriter:
             "alert_id", "brcd_module", "brcd_module_desc", "brcd_code",
             "fos_seq", "fos_attr", "fos_timestamp", "fos_severity",
             "fos_message", "fos_switch_name",
-            "username",
+            "username", "error_message",
         ]
         for key in str_fields:
             val = fields.get(key)
@@ -1217,6 +1228,13 @@ class UDPSyslogListener(threading.Thread):
                           source_ip, exc)
 
     def _handle(self, data, source_ip):
+        try:
+            raw_str = data.decode("utf-8", errors="replace").strip()
+            if raw_str:
+                raw_log.info(f"[{source_ip}] {raw_str}")
+        except Exception:
+            pass
+
         data, source_ip, spoofed = apply_test_mode(data, source_ip)
         measurement = classify_source(source_ip)
         if measurement is None:
@@ -1249,8 +1267,8 @@ class UDPSyslogListener(threading.Thread):
         if vendor == "brocade" and category in HARDWARE_CATEGORIES:
             # Physical switch hardware faults → main alert bucket
             self.writer.write(measurement, source_ip, fields)
-        elif self.report_writer:
-            # Everything else (MAPS, events, security, SANnav) → report bucket
+        if self.report_writer:
+            # Everything else (MAPS, events, security, SANnav, health checks) → report bucket
             self.report_writer.write(measurement, source_ip, fields)
 
 
@@ -1306,6 +1324,12 @@ class TCPSyslogListener(threading.Thread):
                     line, buf = buf.split(b"\n", 1)
                     if not line:
                         continue
+                    try:
+                        raw_str = line.decode("utf-8", errors="replace").strip()
+                        if raw_str:
+                            raw_log.info(f"[{source_ip}] {raw_str}")
+                    except Exception:
+                        pass
                     line, effective_ip, spoofed = apply_test_mode(line, source_ip)
                     line_measurement = measurement or classify_source(effective_ip)
                     if line_measurement is None:
@@ -1330,7 +1354,7 @@ class TCPSyslogListener(threading.Thread):
                     category = fields.get("trap_category", "")
                     if vendor == "brocade" and category in HARDWARE_CATEGORIES:
                         self.influx_writer.write(line_measurement, effective_ip, fields)
-                    elif self.report_writer:
+                    if self.report_writer:
                         self.report_writer.write(line_measurement, effective_ip, fields)
         except Exception as exc:
             log.error("TCP client error (%s): %s", source_ip, exc)
