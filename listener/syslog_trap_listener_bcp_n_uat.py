@@ -179,8 +179,8 @@ def _start_heartbeat() -> None:
 #                    documentation.
 # ---------------------------------------------------------------------------
 
-SANNAV_SOURCES: dict[str, str] = {
-    "10.225.49.221": "HBSANNAVPRDAP3",   # BCP+UAT SANnav (per tcpdump 30-May-2026)
+SANNAV_SOURCES: set[str] = {
+    "10.225.49.221"   # BCP+UAT SANnav (per tcpdump 30-May-2026)
 }
 
 
@@ -834,9 +834,8 @@ HARDWARE_CATEGORIES = {
     "temperature_alarm", "voltage_alert", "power_failure",
     "optic_alert", "battery_alert", "blade_fault",
     "chassis_alert", "fru_event", "env_warning",
-    "airflow_alert", "ntp_alert", "fips_alert", "license_alert",
-    "auth_failure", "wwn_alert", "firmware_alert", "flow_vision",
-    "config_change", "ha_alert", "port_fault",
+    "airflow_alert", "ntp_alert", "fips_alert", 
+     "wwn_alert", "firmware_alert", "flow_vision", "ha_alert", "port_fault",
 }
 
 def classify_brcd_category(module, message_text):

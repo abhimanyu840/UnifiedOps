@@ -170,7 +170,7 @@ def _start_heartbeat() -> None:
 # SOURCE / INVENTORY MAPS
 # ---------------------------------------------------------------------------
 
-SANNAV_SOURCES: dict[str, str] = {
+SANNAV_SOURCES: set[str] = {
     # TODO: populate with the CDVL+SIFY SANnav IP once provided
     # "10.x.y.z": "<sannav-hostname>",
 }
@@ -858,11 +858,9 @@ HARDWARE_CATEGORIES = {
     "temperature_alarm", "voltage_alert", "power_failure",
     "optic_alert", "battery_alert", "blade_fault",
     "chassis_alert", "fru_event", "env_warning",
-    "airflow_alert", "ntp_alert", "fips_alert", "license_alert",
-    "auth_failure", "wwn_alert", "firmware_alert", "flow_vision",
-    "config_change", "ha_alert", "port_fault",
+    "airflow_alert", "ntp_alert", "fips_alert", 
+     "wwn_alert", "firmware_alert", "flow_vision", "ha_alert", "port_fault",
 }
-
 def classify_brcd_category(module, message_text):
     text = message_text or ""
     for cat, pattern in BRCD_KEYWORD_PATTERNS:
