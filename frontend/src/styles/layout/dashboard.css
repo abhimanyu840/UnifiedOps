@@ -17,7 +17,7 @@
 @media (min-width: 1024px) {
   .dashboard {
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    grid-template-rows: minmax(190px, 1fr) minmax(170px, 1fr) minmax(190px, 1fr);
+    grid-template-rows: minmax(140px, 1fr) minmax(130px, 1fr) minmax(140px, 1fr);
     grid-template-areas:
       'total    severity'
       'trend    systems'

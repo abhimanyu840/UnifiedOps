@@ -214,7 +214,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border-mid);
   border-radius: var(--r-xl);
-  width: min(1000px, 92vw);
+  width: min(1200px, 94vw);
   height: min(720px, 85vh);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
   display: flex;
@@ -260,7 +260,9 @@
 
 .modal__body {
   flex: 1 1 auto;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0;
   min-height: 0;
 }
