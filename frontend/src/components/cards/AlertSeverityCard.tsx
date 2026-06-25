@@ -2,17 +2,36 @@ import type { SeverityRow } from '../../types';
 import { ExternalIcon } from '../icons/Icons';
 import { DonutChart } from '../charts/DonutChart';
 import { Card, CardTitle } from './Card';
+import { Skeleton } from '../skeleton/Skeleton';
 
 interface Props {
   data: SeverityRow[];
   onView?: () => void;
   onSliceClick?: (row: SeverityRow) => void;
   className?: string;
+  loading?: boolean;
 }
 
-export function AlertSeverityCard({ data, onView, onSliceClick, className }: Props) {
+export function AlertSeverityCard({ data, onView, onSliceClick, className, loading }: Props) {
   const total = data.reduce((acc, r) => acc + r.value, 0);
   const visible = data.filter(d => d.value > 0);
+
+  if (loading) {
+    return (
+      <Card className={`card--severity ${className ?? ''}`}>
+        <CardTitle>Alert Severity</CardTitle>
+        <div className="severity-row" style={{ padding: 16, display: 'flex', gap: 24, alignItems: 'center' }}>
+          <Skeleton width={170} height={170} borderRadius="50%" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Skeleton width="100%" height={24} />
+            <Skeleton width="80%" height={24} />
+            <Skeleton width="90%" height={24} />
+            <Skeleton width="70%" height={24} />
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className={`card--severity ${className ?? ''}`}>

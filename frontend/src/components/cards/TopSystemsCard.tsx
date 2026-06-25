@@ -1,6 +1,7 @@
 import type { Location, SystemRow } from '../../types';
 import { ExternalIcon } from '../icons/Icons';
 import { Card, CardTitle } from './Card';
+import { Skeleton } from '../skeleton/Skeleton';
 
 interface Props {
   systems: SystemRow[];
@@ -16,6 +17,7 @@ interface Props {
   onView?: () => void;
   onSystemClick?: (row: SystemRow) => void;
   className?: string;
+  loading?: boolean;
 }
 
 const LOC_COLOR: Record<Location | 'ALL', { from: string; to: string; dot: string }> = {
@@ -34,6 +36,7 @@ export function TopSystemsCard({
   onView,
   onSystemClick,
   className,
+  loading,
 }: Props) {
   // Active tab is derived from the global location filter:
   //   - all sites selected (or none)  -> "ALL"
@@ -73,6 +76,19 @@ export function TopSystemsCard({
   const half = Math.ceil(filtered.length / 2);
   const col1 = useTwoCols ? filtered.slice(0, half) : filtered;
   const col2 = useTwoCols ? filtered.slice(half) : [];
+
+  if (loading) {
+    return (
+      <Card className={`card--top-systems ${className ?? ''}`}>
+        <CardTitle>Top Systems by Alerts</CardTitle>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} width="100%" height={24} />
+          ))}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className={`card--top-systems ${className ?? ''}`}>

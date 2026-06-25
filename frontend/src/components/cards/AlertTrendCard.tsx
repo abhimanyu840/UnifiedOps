@@ -1,14 +1,27 @@
 import type { TrendPoint } from '../../types';
 import { AreaChart } from '../charts/AreaChart';
 import { Card, CardTitle } from './Card';
+import { Skeleton } from '../skeleton/Skeleton';
 
 interface Props {
   data: TrendPoint[];
   rangeLabel: string;
   className?: string;
+  loading?: boolean;
 }
 
-export function AlertTrendCard({ data, rangeLabel, className }: Props) {
+export function AlertTrendCard({ data, rangeLabel, className, loading }: Props) {
+  if (loading) {
+    return (
+      <Card className={`card--trend ${className ?? ''}`}>
+        <CardTitle hint={rangeLabel}>Alert Trend</CardTitle>
+        <div style={{ padding: 16, height: 130 }}>
+          <Skeleton width="100%" height="100%" />
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className={`card--trend ${className ?? ''}`}>
       <CardTitle hint={rangeLabel}>Alert Trend</CardTitle>

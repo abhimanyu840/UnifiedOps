@@ -3,6 +3,7 @@ import type { SparkPoint } from '../../types';
 import { ArrowUpIcon } from '../icons/Icons';
 import { AreaChart, type AreaPoint } from '../charts/AreaChart';
 import { Card, CardTitle } from './Card';
+import { Skeleton } from '../skeleton/Skeleton';
 import {
   SparkHoverTooltip,
   toneForValue,
@@ -16,6 +17,7 @@ interface Props {
   rangeLabel: string;
   spark: SparkPoint[];
   className?: string;
+  loading?: boolean;
 }
 
 const fmtTime = (ts: number) => {
@@ -23,7 +25,7 @@ const fmtTime = (ts: number) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-export function TotalAlertsCard({ total, delta, rangeLabel, spark, className }: Props) {
+export function TotalAlertsCard({ total, delta, rangeLabel, spark, className, loading }: Props) {
   const up = delta >= 0;
   const cardRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -36,6 +38,21 @@ export function TotalAlertsCard({ total, delta, rangeLabel, spark, className }: 
     ts: p.ts,
     timeLabel: fmtTime(p.ts),
   }));
+
+  if (loading) {
+    return (
+      <Card className={`card--total ${className ?? ''}`}>
+        <CardTitle hint={rangeLabel}>Total Alerts</CardTitle>
+        <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Skeleton width="40%" height={48} />
+          <Skeleton width="60%" height={16} />
+        </div>
+        <div style={{ height: 64, padding: '0 4px', display: 'flex', alignItems: 'flex-end' }}>
+          <Skeleton width="100%" height="100%" borderRadius={0} />
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className={`card--total ${className ?? ''}`} ref={cardRef}>

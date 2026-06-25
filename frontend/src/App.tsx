@@ -647,6 +647,7 @@ export default function App() {
         onSelect={setSelectedVendor}
         downListenersByVendor={downListenersByVendor}
         infraDownListenersByVendor={infraDownListenersByVendor}
+        loading={dashLoading}
       />
 
       {!vendorActive && vendorName && (
@@ -664,6 +665,7 @@ export default function App() {
             delta={totalsForRange.delta}
             rangeLabel={label}
             spark={sparkData}
+            loading={dashLoading}
           />
 
           <AlertSeverityCard
@@ -671,12 +673,14 @@ export default function App() {
             data={severityData}
             onView={() => openModal(null)}
             onSliceClick={(r) => openModal({ severity: r.key })}
+            loading={dashLoading}
           />
 
           <AlertTrendCard
             className="area-trend"
             data={trendData}
             rangeLabel={label}
+            loading={dashLoading}
           />
 
           <TopSystemsCard
@@ -687,6 +691,7 @@ export default function App() {
             onLocationsChange={setLocations}
             onView={() => openModal(null)}
             onSystemClick={(s) => openModal({ storage: s.name })}
+            loading={dashLoading}
           />
 
           <AlertTypeBreakdownCard
@@ -695,6 +700,7 @@ export default function App() {
             rangeLabel={label}
             onView={() => openModal(null)}
             onSliceClick={(r) => openModal({ category: r.name })}
+            loading={dashLoading}
           />
 
           <div className="area-bottom bottom-bar">
@@ -708,6 +714,7 @@ export default function App() {
               alertCount={ntpAlertCount}
               rangeLabel={label}
               onView={() => openModal({ category: 'NTP' })}
+              loading={dashLoading}
             />
           </div>
       </div>

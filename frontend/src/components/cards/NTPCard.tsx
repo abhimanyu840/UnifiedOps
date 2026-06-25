@@ -1,11 +1,13 @@
 import type React from 'react';
 import { Card, CardTitle } from './Card';
+import { Skeleton } from '../skeleton/Skeleton';
 
 interface Props {
   alertCount: number;
   rangeLabel: string;
   onView?: () => void;
   className?: string;
+  loading?: boolean;
 }
 
 type Tone = 'ok' | 'warn' | 'crit';
@@ -16,8 +18,20 @@ const toneFor = (count: number): Tone => {
   return 'warn';
 };
 
-export function NTPCard({ alertCount, rangeLabel, onView, className }: Props) {
+export function NTPCard({ alertCount, rangeLabel, onView, className, loading }: Props) {
   const tone = toneFor(alertCount);
+
+  if (loading) {
+    return (
+      <Card className={`card--ntp card--ntp--ok ${className ?? ''}`}>
+        <CardTitle>NTP</CardTitle>
+        <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Skeleton width="30%" height={36} />
+          <Skeleton width="70%" height={16} />
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card

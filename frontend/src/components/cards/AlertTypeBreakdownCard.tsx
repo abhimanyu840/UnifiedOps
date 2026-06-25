@@ -2,6 +2,7 @@ import type { AlertTypeRow } from '../../types';
 import { ExternalIcon } from '../icons/Icons';
 import { DonutChart } from '../charts/DonutChart';
 import { Card, CardTitle } from './Card';
+import { Skeleton } from '../skeleton/Skeleton';
 
 interface Props {
   data: AlertTypeRow[];
@@ -9,6 +10,7 @@ interface Props {
   onView?: () => void;
   onSliceClick?: (row: AlertTypeRow) => void;
   className?: string;
+  loading?: boolean;
 }
 
 export function AlertTypeBreakdownCard({
@@ -17,8 +19,26 @@ export function AlertTypeBreakdownCard({
   onView,
   onSliceClick,
   className,
+  loading,
 }: Props) {
   const total = data.reduce((acc, r) => acc + r.value, 0);
+
+  if (loading) {
+    return (
+      <Card className={`card--type ${className ?? ''}`}>
+        <CardTitle hint={rangeLabel}>Alert Type Breakdown</CardTitle>
+        <div className="type-row" style={{ padding: 16, display: 'flex', gap: 24, alignItems: 'center' }}>
+          <Skeleton width={140} height={140} borderRadius="50%" />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Skeleton width="100%" height={20} />
+            <Skeleton width="80%" height={20} />
+            <Skeleton width="90%" height={20} />
+            <Skeleton width="70%" height={20} />
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className={`card--type ${className ?? ''}`}>
