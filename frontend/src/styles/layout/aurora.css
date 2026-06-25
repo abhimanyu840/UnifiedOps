@@ -101,12 +101,12 @@ html, body {
 
 .app[data-vendor="hitachi"] {
   --aurora-a:
-    radial-gradient(48% 55% at 22% 28%, rgba(255, 30, 60, 0.55),  transparent 70%),
-    radial-gradient(48% 55% at 80% 78%, rgba(180, 0, 20, 0.55),   transparent 70%),
-    radial-gradient(40% 45% at 75% 18%, rgba(255, 120, 90, 0.40), transparent 70%);
+    radial-gradient(48% 55% at 22% 28%, rgba(255, 30, 60, 0.75),  transparent 70%),
+    radial-gradient(48% 55% at 80% 78%, rgba(180, 0, 20, 0.75),   transparent 70%),
+    radial-gradient(40% 45% at 75% 18%, rgba(255, 120, 90, 0.60), transparent 70%);
   --aurora-b:
-    radial-gradient(35% 40% at 25% 80%, rgba(255, 77, 90, 0.45),  transparent 70%),
-    radial-gradient(32% 38% at 70% 35%, rgba(255, 150, 120, 0.35), transparent 70%);
+    radial-gradient(35% 40% at 25% 80%, rgba(255, 77, 90, 0.65),  transparent 70%),
+    radial-gradient(32% 38% at 70% 35%, rgba(255, 150, 120, 0.55), transparent 70%);
   --ops-grad-stops:
     #7A0009 0%, #B4000E 20%, #E60012 40%, #FF4D5A 50%,
     #E60012 60%, #B4000E 80%, #7A0009 100%;
@@ -114,12 +114,12 @@ html, body {
 
 .app[data-vendor="netapp"] {
   --aurora-a:
-    radial-gradient(48% 55% at 22% 28%, rgba(0, 103, 197, 0.55), transparent 70%),
-    radial-gradient(48% 55% at 80% 78%, rgba(0, 74, 153, 0.55),  transparent 70%),
-    radial-gradient(40% 45% at 75% 18%, rgba(77, 163, 255, 0.40), transparent 70%);
+    radial-gradient(48% 55% at 22% 28%, rgba(0, 103, 197, 0.75), transparent 70%),
+    radial-gradient(48% 55% at 80% 78%, rgba(0, 74, 153, 0.75),  transparent 70%),
+    radial-gradient(40% 45% at 75% 18%, rgba(77, 163, 255, 0.60), transparent 70%);
   --aurora-b:
-    radial-gradient(35% 40% at 25% 80%, rgba(77, 163, 255, 0.45), transparent 70%),
-    radial-gradient(32% 38% at 70% 35%, rgba(120, 195, 255, 0.35), transparent 70%);
+    radial-gradient(35% 40% at 25% 80%, rgba(77, 163, 255, 0.65), transparent 70%),
+    radial-gradient(32% 38% at 70% 35%, rgba(120, 195, 255, 0.55), transparent 70%);
   --ops-grad-stops:
     #003E78 0%, #004A99 20%, #0067C5 40%, #4DA3FF 50%,
     #0067C5 60%, #004A99 80%, #003E78 100%;
@@ -127,12 +127,12 @@ html, body {
 
 .app[data-vendor="dell"] {
   --aurora-a:
-    radial-gradient(48% 55% at 22% 28%, rgba(0, 133, 195, 0.55), transparent 70%),
-    radial-gradient(48% 55% at 80% 78%, rgba(0, 119, 166, 0.55), transparent 70%),
-    radial-gradient(40% 45% at 75% 18%, rgba(92, 225, 255, 0.40), transparent 70%);
+    radial-gradient(48% 55% at 22% 28%, rgba(0, 133, 195, 0.75), transparent 70%),
+    radial-gradient(48% 55% at 80% 78%, rgba(0, 119, 166, 0.75), transparent 70%),
+    radial-gradient(40% 45% at 75% 18%, rgba(92, 225, 255, 0.60), transparent 70%);
   --aurora-b:
-    radial-gradient(35% 40% at 25% 80%, rgba(92, 225, 255, 0.45), transparent 70%),
-    radial-gradient(32% 38% at 70% 35%, rgba(0, 163, 224, 0.35),  transparent 70%);
+    radial-gradient(35% 40% at 25% 80%, rgba(92, 225, 255, 0.65), transparent 70%),
+    radial-gradient(32% 38% at 70% 35%, rgba(0, 163, 224, 0.55),  transparent 70%);
   --ops-grad-stops:
     #00567A 0%, #0077A6 20%, #0085C3 40%, #5CE1FF 50%,
     #0085C3 60%, #0077A6 80%, #00567A 100%;
@@ -140,12 +140,12 @@ html, body {
 
 .app[data-vendor="brocade"] {
   --aurora-a:
-    radial-gradient(48% 55% at 22% 28%, rgba(255, 17, 0, 0.55),   transparent 70%),
-    radial-gradient(48% 55% at 80% 78%, rgba(204, 85, 0, 0.55),   transparent 70%),
-    radial-gradient(40% 45% at 75% 18%, rgba(255, 162, 77, 0.40), transparent 70%);
+    radial-gradient(48% 55% at 22% 28%, rgba(255, 17, 0, 0.75),   transparent 70%),
+    radial-gradient(48% 55% at 80% 78%, rgba(204, 85, 0, 0.75),   transparent 70%),
+    radial-gradient(40% 45% at 75% 18%, rgba(255, 162, 77, 0.60), transparent 70%);
   --aurora-b:
-    radial-gradient(35% 40% at 25% 80%, rgba(255, 106, 0, 0.45),  transparent 70%),
-    radial-gradient(32% 38% at 70% 35%, rgba(255, 162, 77, 0.35), transparent 70%);
+    radial-gradient(35% 40% at 25% 80%, rgba(255, 106, 0, 0.65),  transparent 70%),
+    radial-gradient(32% 38% at 70% 35%, rgba(255, 162, 77, 0.55), transparent 70%);
   --ops-grad-stops:
     #8A2B00 0%, #CC5500 20%, #FF6A00 40%, #FFA24D 50%,
     #FF6A00 60%, #CC5500 80%, #8A2B00 100%;
