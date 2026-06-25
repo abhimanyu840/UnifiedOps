@@ -248,32 +248,44 @@ export default function App() {
   // heartbeat InfluxDB that is unreachable, and every alert-store
   // container that is unreachable — each becomes one row in the hover
   // tooltip so the operator sees the full impact at a glance.
-  const downServicesForPill = useMemo(() => {
-    const out: { label: string; detail?: string; kind: 'listener' | 'heartbeat' | 'alert-store' }[] = [];
+  const servicesForPill = useMemo(() => {
+    const out: { label: string; detail?: string; kind: 'listener' | 'heartbeat' | 'alert-store'; state: 'up' | 'down' | 'error' }[] = [];
     for (const ev of listenerHealth.infra_events) {
       if (ev.component === 'alert') {
         const v = String(ev.vendor ?? '').trim();
         const vendorPretty = v ? v.charAt(0).toUpperCase() + v.slice(1) : 'Vendor';
         out.push({
           kind: 'alert-store',
+          state: 'error',
           label: `${vendorPretty} ${ev.site}`,
           detail: ev.error || 'alert store unreachable',
         });
       } else {
         out.push({
           kind: 'heartbeat',
+          state: 'error',
           label: `${ev.site} heartbeat InfluxDB`,
           detail: ev.error || 'unreachable',
         });
       }
     }
     for (const l of listenerHealth.listeners) {
-      if (l.state !== 'down') continue;
-      out.push({
-        kind: 'listener',
-        label: `${l.oem} ${l.site}`,
-        detail: `${l.listener} — no heartbeat for ${l.age_s ? Math.round(l.age_s) + 's' : '>30s'}`,
-      });
+      if (l.state === 'unknown' || l.state === 'infra_down') continue;
+      if (l.state === 'down') {
+        out.push({
+          kind: 'listener',
+          state: 'down',
+          label: `${l.oem} ${l.site}`,
+          detail: `${l.listener} — no heartbeat for ${l.age_s ? Math.round(l.age_s) + 's' : '>30s'}`,
+        });
+      } else if (l.state === 'up') {
+        out.push({
+          kind: 'listener',
+          state: 'up',
+          label: `${l.oem} ${l.site}`,
+          detail: `${l.listener} — receiving telemetry`,
+        });
+      }
     }
     return out;
   }, [listenerHealth.infra_events, listenerHealth.listeners]);
@@ -653,7 +665,7 @@ export default function App() {
         onRangeChange={setRange}
         refreshing={refreshing}
         onRefresh={onRefresh}
-        downServices={downServicesForPill}
+        services={servicesForPill}
       />
 
       <SystemHealthOverview

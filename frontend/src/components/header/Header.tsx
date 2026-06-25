@@ -1,6 +1,6 @@
 import type { Location, SystemStatus, TimeRange } from '../../types';
 import { BrandTitle } from './BrandTitle';
-import { LiveBadge, type DownService } from './LiveBadge';
+import { LiveBadge, type ServiceStatusRow } from './LiveBadge';
 import { LocationPicker } from './LocationPicker';
 import { RangePicker } from './RangePicker';
 import { RefreshButton } from './RefreshButton';
@@ -14,7 +14,7 @@ interface Props {
   onRangeChange: (next: TimeRange) => void;
   refreshing: boolean;
   onRefresh: () => void;
-  downServices?: DownService[];
+  services?: ServiceStatusRow[];
 }
 
 export function Header({
@@ -26,7 +26,7 @@ export function Header({
   onRangeChange,
   refreshing,
   onRefresh,
-  downServices,
+  services,
 }: Props) {
   return (
     <header className="header">
@@ -42,7 +42,7 @@ export function Header({
       </div>
 
       <div className="header__actions">
-        <LiveBadge status={status} downServices={downServices} />
+        <LiveBadge status={status} services={services} />
         <LocationPicker
           selected={selectedLocations}
           all={allLocations}
