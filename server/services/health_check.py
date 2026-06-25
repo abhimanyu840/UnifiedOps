@@ -151,6 +151,7 @@ class HealthCheckMonitor:
         self._alert_monitor = alert_monitor
         self._stop = asyncio.Event()
         self._task: Optional[asyncio.Task] = None
+        self._started_at = time.time()
 
         # listener_id -> dict
         self._listeners: Dict[str, Dict[str, Any]] = {}
@@ -320,7 +321,10 @@ class HealthCheckMonitor:
 
             last = row.get("last_seen")
             if last is None:
-                row["state"] = "down" if prev_state in ("down", "up", "infra_down") else "unknown"
+                if (now - self._started_at) > DOWN_THRESHOLD_S:
+                    row["state"] = "down"
+                else:
+                    row["state"] = "down" if prev_state in ("down", "up", "infra_down") else "unknown"
                 age = None
             else:
                 age = now - last

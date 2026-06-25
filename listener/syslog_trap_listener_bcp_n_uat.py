@@ -310,9 +310,10 @@ SWITCH_IP_TO_NAME: dict[str, str] = {
 
 # Network table built once over SANNAV_SOURCES (single value "san_switch")
 # so the existing classify_source() machinery still gives a measurement.
-def _build_filter_table(ip_dict):
+def _build_filter_table(ip_col):
     table = []
-    for entry in ip_dict.keys():
+    items = ip_col.keys() if hasattr(ip_col, "keys") else ip_col
+    for entry in items:
         try:
             net = ipaddress.ip_network(entry, strict=False)
             table.append((net, "san_switch"))
@@ -360,7 +361,7 @@ def resolve_switch_meta(swname, source_ip):
             return ip_name, env, owner, model
 
     if source_ip in SANNAV_SOURCES:
-        return SANNAV_SOURCES[source_ip], LOCATION_PAIR, "Broadcom", "SANnav"
+        return "SANnav_Server", LOCATION_PAIR, "Broadcom", "SANnav"
 
     return name or "unknown", LOCATION_PAIR, "unknown", "unknown"
 

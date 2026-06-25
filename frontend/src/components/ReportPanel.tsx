@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RANGE_OPTIONS, HEALTH_VENDORS } from '../data/config';
-import { ChevronDownIcon, ClockIcon, LocationIcon } from './icons/Icons';
+import { Calendar, ChevronDown, Check, X, FileText, Download, Clock, Loader2, MapPin } from 'lucide-react';
 import type { Location, RangeKey } from '../types';
+import { ClockIcon, ChevronDownIcon, LocationIcon } from './icons/Icons';
 
 const ALL_LOCATIONS: Location[] = ['CDVL', 'BCP', 'SIFY'];
 const OEM_LIST = HEALTH_VENDORS.filter(v => v.key !== 'total');
@@ -49,6 +50,8 @@ export function ReportPanel() {
   const [format, setFormat] = useState<'csv'|'xlsx'|'pdf'>('csv');
   const [formatOpen, setFormatOpen] = useState(false);
   const formatRef = useRef<HTMLDivElement>(null);
+
+  const [isDownloading, setIsDownloading] = useState(false);
 
   /* Close dropdowns on outside click */
   useEffect(() => {
@@ -126,19 +129,54 @@ export function ReportPanel() {
   /* ---- Download ---- */
   const canDownload = selectedSites.length > 0 && selectedVendors.length > 0;
 
-  const handleDownload = () => {
-    const params = new URLSearchParams();
-    if (rangeMode === 'relative') {
-      params.append('range', rangeKey);
-    } else {
-      params.append('start', new Date(customStart).toISOString());
-      params.append('stop', new Date(customStop).toISOString());
+  const handleDownload = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const params = new URLSearchParams();
+      if (rangeMode === 'relative') {
+        params.append('range', rangeKey);
+      } else {
+        params.append('start', new Date(customStart).toISOString());
+        params.append('stop', new Date(customStop).toISOString());
+      }
+      selectedSites.forEach(s => params.append('site', s));
+      selectedVendors.forEach(v => params.append('vendor', v));
+      params.append('format', format);
+      params.append('report_type', reportType);
+
+      const url = `/api/reports/download?${params.toString()}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || res.statusText);
+      }
+      
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      
+      let filename = `report_${reportType}_${new Date().getTime()}.${format}`;
+      const disposition = res.headers.get('Content-Disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err: any) {
+      console.error(err);
+      alert(`Download failed: ${err.message}`);
+    } finally {
+      setIsDownloading(false);
     }
-    selectedSites.forEach(s => params.append('site', s));
-    selectedVendors.forEach(v => params.append('vendor', v));
-    params.append('format', format);
-    params.append('report_type', reportType);
-    window.open(`/api/reports/download?${params.toString()}`, '_blank');
   };
 
   const timeoutRef = useRef<number | null>(null);
@@ -494,17 +532,21 @@ export function ReportPanel() {
               {/* ---- Footer ---- */}
               <div className="rp-footer">
                 <button
-                  className={`rp-download ${!canDownload ? 'rp-download--disabled' : ''}`}
+                  className={`rp-download ${!canDownload || isDownloading ? 'rp-download--disabled' : ''}`}
                   onClick={handleDownload}
-                  disabled={!canDownload}
+                  disabled={!canDownload || isDownloading}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                  <span>{canDownload ? `Download ${format.toUpperCase()} ${reportType === 'health_check' ? 'Health Check' : 'Alerts'}` : 'Select filters'}</span>
+                  {isDownloading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  )}
+                  <span>{isDownloading ? 'Downloading...' : canDownload ? `Download ${format.toUpperCase()} ${reportType === 'health_check' ? 'Health Check' : 'Alerts'}` : 'Select filters'}</span>
                 </button>
               </div>
             </motion.div>

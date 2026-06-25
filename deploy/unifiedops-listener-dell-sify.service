@@ -1,0 +1,47 @@
+[Unit]
+Description=UnifiedOps v2 Dell SIFY Syslog Listener
+After=network-online.target influxdb.service
+Wants=network-online.target influxdb.service
+
+[Service]
+Type=simple
+User=unifiedops
+Group=unifiedops
+WorkingDirectory=/opt/unifiedops
+
+# Environment variables
+Environment="HITRACK_INFLUX_URL=http://127.0.0.1:8086"
+Environment="HITRACK_INFLUX_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_INFLUX_ORG=HDFC"
+Environment="HITRACK_INFLUX_BUCKET=Dell_SIFY_Bucket"
+Environment="HITRACK_LISTEN_HOST=0.0.0.0"
+Environment="HITRACK_LISTEN_PORT=515"
+Environment="HITRACK_WORKER_THREADS=16"
+Environment="HITRACK_WRITE_BATCH=true"
+Environment="HITRACK_WRITE_BATCH_SIZE=200"
+Environment="HITRACK_WRITE_FLUSH_MS=1000"
+Environment="HITRACK_WRITE_RETRY_MS=1000"
+Environment="HITRACK_TEST_MODE=false"
+
+# Heartbeat variables
+Environment="HITRACK_HEARTBEAT_URL=http://127.0.0.1:8086"
+Environment="HITRACK_HEARTBEAT_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_HEARTBEAT_ORG=HDFC"
+Environment="HITRACK_HEARTBEAT_BUCKET=unifiedops-influx-health-report-sify"
+Environment="HITRACK_HEARTBEAT_INTERVAL=15"
+
+ExecStart=/usr/bin/python /opt/unifiedops/listener/syslog_trap_listener_dell_sify.py
+Restart=on-failure
+RestartSec=4
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/unifiedops
+
+[Install]
+WantedBy=multi-user.target

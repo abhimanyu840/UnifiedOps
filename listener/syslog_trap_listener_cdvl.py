@@ -89,6 +89,13 @@ logging.basicConfig(
 )
 log = logging.getLogger("syslog_trap_listener_cdvl")
 
+raw_log = logging.getLogger("raw_syslog_cdvl")
+raw_log.setLevel(logging.INFO)
+raw_fh = logging.FileHandler("syslog_trap_listener_cdvl_raw_syslog_data.log")
+raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+raw_log.addHandler(raw_fh)
+raw_log.propagate = False
+
 # ---------------------------------------------------------------------------
 # Heartbeat — inline per-listener (each listener is its own service)
 # Writes a `syslog_listener_heartbeat` point into the per-site heartbeat
@@ -883,6 +890,8 @@ def parse_syslog(raw, source_ip):
     _msg_count += 1
     try:
         text = raw.decode("utf-8", errors="replace").strip()
+        if text:
+            raw_log.info(f"[{source_ip}] {text}")
     except Exception:
         return None
 
@@ -964,6 +973,8 @@ def parse_syslog(raw, source_ip):
     if storage_name != "unknown":
         fields["hostname"] = storage_name
 
+    fields["error_message"] = fields.get("svp_text") or fields.get("message") or fields.get("raw_message")
+
     return fields
 
 
@@ -1014,7 +1025,7 @@ class InfluxWriter:
             "hostname", "app_name", "proc_id", "msg_id", "process",
             "pid", "message", "raw_message", "structured_data",
             "timestamp_str", "ref_code", "svp_seq", "svp_text",
-            "svp_severity",
+            "svp_severity", "error_message",
         ]
         for key in str_fields:
             val = fields.get(key)

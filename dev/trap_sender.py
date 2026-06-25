@@ -676,6 +676,51 @@ VENDOR_CATALOGUES: Dict[str, List[Tuple[str, str, str]]] = {
 }
 VENDOR_CATALOGUES["Hitachi"] = SIM_CATALOGUE
 
+import json
+from pathlib import Path
+_inventory_file = Path(__file__).resolve().parents[1] / "server" / "data" / "device_inventory.json"
+if _inventory_file.exists():
+    try:
+        with open(_inventory_file, "r") as f:
+            _inv_data = json.load(f)
+        _brcd_inv = _inv_data.get("inventory", {}).get("brocade", {})
+        for loc, switches in _brcd_inv.items():
+            if loc not in VENDOR_STORAGE_IPS["Brocade"]:
+                VENDOR_STORAGE_IPS["Brocade"][loc] = {}
+            loc_idx = list(_brcd_inv.keys()).index(loc)
+            for sw_idx, sw_name in enumerate(switches):
+                if sw_name not in VENDOR_STORAGE_IPS["Brocade"][loc].values():
+                    fake_ip = f"10.99.{loc_idx}.{sw_idx+1}"
+                    VENDOR_STORAGE_IPS["Brocade"][loc][fake_ip] = sw_name
+    except Exception as e:
+        print(f"Warning: Failed to load device_inventory.json for trap sender: {e}")
+
+_health_msgs = [
+    ("Serious", "HC-001", "ntp sync failed (NTP Alert)"),
+    ("Serious", "HC-002", "fips mode error (FIPS Alert)"),
+    ("Moderate", "HC-003", "license expired (License Alert)"),
+    ("Moderate", "HC-004", "login failed (Auth Failure)"),
+    ("Serious", "HC-005", "wwn missing (WWN Alert)"),
+    ("Serious", "HC-006", "airflow low (Airflow Alert)"),
+    ("Moderate", "HC-007", "battery low (Battery Alert)"),
+    ("Acute", "HC-008", "fan missing (Fan Missing)"),
+    ("Acute", "HC-009", "fan failed (Fan Failure)"),
+    ("Acute", "HC-010", "blade fault (Blade Fault)"),
+    ("Serious", "HC-011", "temperature high (Temperature Alarm)"),
+    ("Serious", "HC-012", "voltage low (Voltage Alert)"),
+    ("Acute", "HC-013", "power failure (Power Failure)"),
+    ("Serious", "HC-014", "sfp fault (Optic Alert)"),
+    ("Serious", "HC-015", "firmware error (Firmware Alert)"),
+    ("Moderate", "HC-016", "flow vision violation (Flow Vision)"),
+    ("Info", "HC-017", "config change (Config Change)"),
+    ("Serious", "HC-018", "high availability (HA Alert)"),
+    ("Serious", "HC-019", "port fault (Port Fault)"),
+    ("Serious", "HC-020", "chassis fault (Chassis Alert)"),
+    ("Serious", "HC-021", "fru removed (FRU Event)"),
+    ("Moderate", "HC-022", "environmental limits (Env Warning)"),
+]
+VENDOR_CATALOGUES["Brocade"].extend(_health_msgs)
+
 # severity -> syslog priority (facility=local0 (16) << 3 | severity).
 # Matches what real arrays emit: warning/error/critical map to <132>/<131>/<130>.
 SYSLOG_PRI_FOR_SEVERITY: Dict[str, int] = {
@@ -896,8 +941,11 @@ def parse_target(target: str) -> Tuple[str, int]:
     return host, port
 
 
-def pick_source_ip(location: str, explicit_ip: str = "") -> Tuple[str, str]:
-    pool = LOCATION_IP_MAP[location]
+def pick_source_ip(location: str, vendor: str = "Hitachi", explicit_ip: str = "") -> Tuple[str, str]:
+    pool = VENDOR_STORAGE_IPS[vendor].get(location, {})
+    if not pool:
+        print(f"error: No IPs configured for vendor {vendor} at location {location}", file=sys.stderr)
+        sys.exit(1)
     if explicit_ip:
         if explicit_ip not in pool:
             print(
@@ -911,11 +959,12 @@ def pick_source_ip(location: str, explicit_ip: str = "") -> Tuple[str, str]:
     return ip, pool[ip]
 
 
-def pick_catalogue_entry(refcode: str = "") -> Tuple[str, str, str]:
+def pick_catalogue_entry(vendor: str = "Hitachi", refcode: str = "") -> Tuple[str, str, str]:
+    cat = VENDOR_CATALOGUES[vendor]
     if not refcode:
-        return random.choice(SIM_CATALOGUE)
+        return random.choice(cat) if cat else ("Moderate", "UNKNOWN", "Test trap")
     refcode_upper = refcode.upper()
-    for sev, code, text in SIM_CATALOGUE:
+    for sev, code, text in cat:
         if code.upper() == refcode_upper:
             return sev, code, text
     # Unknown - return a passthrough entry.
@@ -940,10 +989,21 @@ def main() -> int:
     )
     p.add_argument(
         "--location", "-l",
-        choices=list(LOCATION_IP_MAP.keys()),
+        choices=["CDVL", "BCP", "SIFY", "UAT"],
         default="CDVL",
         help="Which location to spoof. Picks IP + array_name from that "
              "location's map. Default: CDVL.",
+    )
+    p.add_argument(
+        "--vendor", "-v",
+        choices=VENDORS,
+        default="Hitachi",
+        help="Vendor to spoof. Default: Hitachi.",
+    )
+    p.add_argument(
+        "--health-check",
+        action="store_true",
+        help="Blast 1 alert for each health check category (forces Brocade).",
     )
     p.add_argument(
         "--source-ip",
@@ -1022,7 +1082,38 @@ def main() -> int:
         cmd_list_refcodes()
         return 0
 
-    target_str = args.target or DEFAULT_TARGETS[args.location]
+    vendor = args.vendor
+    if args.health_check:
+        vendor = "Brocade"
+        health_msgs = [
+            ("Serious", "HC-001", "ntp sync failed"),
+            ("Serious", "HC-002", "fips mode error"),
+            ("Moderate", "HC-003", "license expired"),
+            ("Moderate", "HC-004", "login failed"),
+            ("Serious", "HC-005", "wwn missing"),
+            ("Serious", "HC-006", "airflow low"),
+            ("Moderate", "HC-007", "battery low"),
+            ("Acute", "HC-008", "fan missing"),
+            ("Acute", "HC-009", "fan failed"),
+            ("Acute", "HC-010", "blade fault"),
+            ("Serious", "HC-011", "temperature high"),
+            ("Serious", "HC-012", "voltage low"),
+            ("Acute", "HC-013", "power failure"),
+            ("Serious", "HC-014", "sfp fault"),
+            ("Serious", "HC-015", "firmware error"),
+            ("Moderate", "HC-016", "flow vision violation"),
+            ("Info", "HC-017", "config changed"),
+            ("Serious", "HC-018", "ha failover"),
+            ("Serious", "HC-019", "port fault"),
+            ("Serious", "HC-020", "chassis error"),
+            ("Serious", "HC-021", "fru fault"),
+            ("Moderate", "HC-022", "environment warning"),
+        ]
+        total = len(health_msgs)
+    else:
+        total = float("inf") if args.infinite else args.count
+
+    target_str = args.target or VENDOR_TARGETS.get(vendor, {}).get(args.location, "127.0.0.1:5514")
     host, port = parse_target(target_str)
 
     sock = None
@@ -1031,41 +1122,55 @@ def main() -> int:
 
     sent = 0
     i = 0
-    total = float("inf") if args.infinite else args.count
     while i < total:
-        # Picker: explicit refcode overrides --random.
-        if args.refcode:
-            sev, code, text = pick_catalogue_entry(args.refcode)
+        if args.health_check:
+            sev, code, text = health_msgs[i]
+        elif args.refcode:
+            sev, code, text = pick_catalogue_entry(vendor, args.refcode)
         elif args.random:
-            sev, code, text = random.choice(SIM_CATALOGUE)
+            sev, code, text = pick_catalogue_entry(vendor, "")
         else:
-            # First call defaults to the first catalogue entry; subsequent
-            # calls reuse it unless --random.
-            sev, code, text = SIM_CATALOGUE[0]
+            sev, code, text = VENDOR_CATALOGUES[vendor][0] if VENDOR_CATALOGUES[vendor] else ("Moderate", "TEST", "Test")
 
         severity = args.severity or sev
         message  = args.text or text
 
-        source_ip, array_name = pick_source_ip(args.location, args.source_ip)
+        source_ip, array_name = pick_source_ip(args.location, vendor, args.source_ip)
         seq = 100000 + random.randint(0, 99999)
 
-        packet = build_packet(
-            source_ip=source_ip,
-            array_name=array_name,
-            severity=severity,
-            refcode=code,
-            text=message,
-            seq=seq,
-            use_gum_envelope=not args.svp,
-            rfc5424=not args.rfc3164,
-        )
+        if vendor == "Brocade":
+            packet = build_brocade_packet(
+                source_ip=source_ip, array_name=array_name, severity=severity,
+                refcode=code, text=message, seq=seq
+            )
+        elif vendor == "SANnav":
+            packet = build_sannav_packet(
+                source_ip=source_ip, array_name=array_name, severity=severity,
+                refcode=code, text=message, seq=seq
+            )
+        elif vendor in ("NetApp", "Dell"):
+            packet = build_netapp_packet(
+                source_ip=source_ip, array_name=array_name, severity=severity,
+                refcode=code, text=message, seq=seq
+            )
+        else:
+            packet = build_packet(
+                source_ip=source_ip,
+                array_name=array_name,
+                severity=severity,
+                refcode=code,
+                text=message,
+                seq=seq,
+                use_gum_envelope=not args.svp,
+                rfc5424=not args.rfc3164,
+            )
 
         if args.dry_run:
             print(packet.decode("utf-8", errors="replace"))
         else:
             assert sock is not None
             sock.sendto(packet, (host, port))
-            label = "inf" if args.infinite else str(args.count)
+            label = "inf" if args.infinite else str(total)
             print(
                 f"[{i + 1}/{label}] -> {host}:{port}  "
                 f"loc={args.location} ip={source_ip} array={array_name} "
@@ -1075,7 +1180,7 @@ def main() -> int:
             sent += 1
 
         i += 1
-        more_to_go = args.infinite or i < args.count
+        more_to_go = args.infinite or i < total
         if args.interval and more_to_go:
             time.sleep(args.interval)
 

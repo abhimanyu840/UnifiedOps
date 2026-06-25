@@ -2,18 +2,15 @@
 ; UnifiedOps UI server — FastAPI (server.py)
 ;
 ; Responsibilities:
-;   - Pools alert data from all 8 vendor InfluxDB buckets across the
+;   - Pools alert data from all vendor InfluxDB buckets across the
 ;     3 listener servers (every 5 s) and pushes to React via WebSocket.
 ;   - Serves the built React bundle (frontend/dist/) over HTTP/HTTPS.
 ;   - Proxies /influx* to the 3 listener-server InfluxDBs for ad-hoc
 ;     Flux queries from the browser when /api can't serve directly.
 ;
-;   * Does NOT touch the heartbeat buckets — that's health_check.py.
-;
 ; Install:
 ;   sudo cp deploy/unifiedops-ui-server.service /etc/systemd/system/
-;   sudo cp deploy/unifiedops.env.example       /etc/unifiedops/ui.env
-;   sudo vi  /etc/unifiedops/ui.env                  (tokens, URLs, TLS)
+;   sudo systemctl edit --full unifiedops-ui-server
 ;   sudo systemctl daemon-reload
 ;   sudo systemctl enable --now unifiedops-ui-server
 ;
@@ -28,8 +25,136 @@ Type=simple
 User=unifiedops
 Group=unifiedops
 WorkingDirectory=/opt/unifiedops
-EnvironmentFile=/etc/unifiedops/ui.env
-ExecStart=/opt/unifiedops/.venv/bin/python /opt/unifiedops/server/server.py
+
+# --- FastAPI listen address ---
+Environment="HITRACK_UI_HOST=0.0.0.0"
+Environment="HITRACK_UI_PORT=8001"
+Environment="HITRACK_UI_DIST=/opt/unifiedops/frontend/dist"
+Environment="HITRACK_UI_TLS_CERT="
+Environment="HITRACK_UI_TLS_KEY="
+Environment="HITRACK_UI_TLS_KEY_PASSWORD="
+
+# --- Runtime UI config ---
+Environment="UNIFIEDOPS_PUBLIC_BRAND_TITLE=UnifiedOps"
+Environment="UNIFIEDOPS_PUBLIC_BRAND_LOGO_LEFT=/wipro.png"
+Environment="UNIFIEDOPS_PUBLIC_BRAND_LOGO_RIGHT=/hdfc.png"
+Environment="UNIFIEDOPS_PUBLIC_DASHBOARD_TITLE=UnifiedOps v2"
+Environment="UNIFIEDOPS_PUBLIC_DEFAULT_RANGE=6h"
+Environment="UNIFIEDOPS_PUBLIC_API_BASE="
+Environment="UNIFIEDOPS_PUBLIC_WS_BASE="
+Environment="UNIFIEDOPS_PUBLIC_SITES=CDVL,BCP,SIFY"
+Environment="UNIFIEDOPS_PUBLIC_VENDORS=hitachi,brocade,netapp,dell"
+Environment="UNIFIEDOPS_PUBLIC_REFRESH_HINT_TEXT=Live · 5s"
+
+# --- Alert InfluxDBs (Hitachi) ---
+Environment="HITRACK_BUCKET_HITACHI_CDVL_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_BUCKET_HITACHI_CDVL_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_HITACHI_CDVL_ORG=HDFC"
+Environment="HITRACK_BUCKET_HITACHI_CDVL_BUCKET=Hitachi_CDVL_Bucket"
+
+Environment="HITRACK_BUCKET_HITACHI_BCP_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_BUCKET_HITACHI_BCP_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_HITACHI_BCP_ORG=HDFC"
+Environment="HITRACK_BUCKET_HITACHI_BCP_BUCKET=Hitachi_BCP_Bucket"
+
+Environment="HITRACK_BUCKET_HITACHI_SIFY_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_BUCKET_HITACHI_SIFY_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_HITACHI_SIFY_ORG=HDFC"
+Environment="HITRACK_BUCKET_HITACHI_SIFY_BUCKET=Hitachi_SIFY_Bucket"
+
+# --- Alert InfluxDBs (Brocade) ---
+Environment="HITRACK_BUCKET_BROCADE_CDVL_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_BUCKET_BROCADE_CDVL_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_BROCADE_CDVL_ORG=HDFC"
+Environment="HITRACK_BUCKET_BROCADE_CDVL_BUCKET=Brocade_CDVL_Bucket"
+
+Environment="HITRACK_BUCKET_BROCADE_BCP_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_BUCKET_BROCADE_BCP_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_BROCADE_BCP_ORG=HDFC"
+Environment="HITRACK_BUCKET_BROCADE_BCP_BUCKET=Brocade_BCP_Bucket"
+
+Environment="HITRACK_BUCKET_BROCADE_SIFY_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_BUCKET_BROCADE_SIFY_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_BROCADE_SIFY_ORG=HDFC"
+Environment="HITRACK_BUCKET_BROCADE_SIFY_BUCKET=Brocade_SIFY_Bucket"
+
+# --- Alert InfluxDBs (NetApp) ---
+Environment="HITRACK_BUCKET_NETAPP_CDVL_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_BUCKET_NETAPP_CDVL_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_NETAPP_CDVL_ORG=HDFC"
+Environment="HITRACK_BUCKET_NETAPP_CDVL_BUCKET=NetApp_CDVL_Bucket"
+
+Environment="HITRACK_BUCKET_NETAPP_BCP_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_BUCKET_NETAPP_BCP_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_NETAPP_BCP_ORG=HDFC"
+Environment="HITRACK_BUCKET_NETAPP_BCP_BUCKET=NetApp_BCP_Bucket"
+
+Environment="HITRACK_BUCKET_NETAPP_SIFY_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_BUCKET_NETAPP_SIFY_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_NETAPP_SIFY_ORG=HDFC"
+Environment="HITRACK_BUCKET_NETAPP_SIFY_BUCKET=NetApp_SIFY_Bucket"
+
+# --- Alert InfluxDBs (Dell) ---
+Environment="HITRACK_BUCKET_DELL_CDVL_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_BUCKET_DELL_CDVL_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_DELL_CDVL_ORG=HDFC"
+Environment="HITRACK_BUCKET_DELL_CDVL_BUCKET=Dell_CDVL_Bucket"
+
+Environment="HITRACK_BUCKET_DELL_BCP_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_BUCKET_DELL_BCP_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_DELL_BCP_ORG=HDFC"
+Environment="HITRACK_BUCKET_DELL_BCP_BUCKET=Dell_BCP_Bucket"
+
+Environment="HITRACK_BUCKET_DELL_SIFY_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_BUCKET_DELL_SIFY_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_BUCKET_DELL_SIFY_ORG=HDFC"
+Environment="HITRACK_BUCKET_DELL_SIFY_BUCKET=Dell_SIFY_Bucket"
+
+# --- Report InfluxDBs (Brocade) ---
+Environment="HITRACK_INFLUX_BROCADE_CDVL_REPORT_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_INFLUX_BROCADE_CDVL_REPORT_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_INFLUX_BROCADE_CDVL_REPORT_BUCKET=unifiedops-influx-health-report-cdvl"
+
+Environment="HITRACK_INFLUX_BROCADE_BCP_REPORT_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_INFLUX_BROCADE_BCP_REPORT_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_INFLUX_BROCADE_BCP_REPORT_BUCKET=unifiedops-influx-health-report-bcp"
+
+Environment="HITRACK_INFLUX_BROCADE_SIFY_REPORT_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_INFLUX_BROCADE_SIFY_REPORT_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_INFLUX_BROCADE_SIFY_REPORT_BUCKET=unifiedops-influx-health-report-sify"
+
+# --- Heartbeat InfluxDBs ---
+Environment="HITRACK_HEARTBEAT_CDVL_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_HEARTBEAT_CDVL_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_HEARTBEAT_CDVL_ORG=HDFC"
+Environment="HITRACK_HEARTBEAT_CDVL_BUCKET=unifiedops-influx-health-report-cdvl"
+
+Environment="HITRACK_HEARTBEAT_BCP_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_HEARTBEAT_BCP_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_HEARTBEAT_BCP_ORG=HDFC"
+Environment="HITRACK_HEARTBEAT_BCP_BUCKET=unifiedops-influx-health-report-bcp"
+
+Environment="HITRACK_HEARTBEAT_SIFY_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_HEARTBEAT_SIFY_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_HEARTBEAT_SIFY_ORG=HDFC"
+Environment="HITRACK_HEARTBEAT_SIFY_BUCKET=unifiedops-influx-health-report-sify"
+
+# --- Poll cadences ---
+Environment="HITRACK_PIPELINE_POLL_SECS=5"
+Environment="HITRACK_LISTENER_POLL_SECS=10"
+Environment="HITRACK_LISTENER_DOWN_THRESHOLD_S=30"
+
+# --- Threadpool + httpx pool ---
+Environment="HITRACK_THREAD_WORKERS=64"
+Environment="HITRACK_HTTPX_MAX_CONNECTIONS=200"
+Environment="HITRACK_HTTPX_MAX_KEEPALIVE=64"
+
+# --- Misc ---
+Environment="HITRACK_VERIFY_TLS=1"
+Environment="HITRACK_CORS_ORIGINS=*"
+Environment="HITRACK_DASH_CACHE_TTL=3.0"
+
+ExecStart=/usr/bin/python /opt/unifiedops/server/server.py
 Restart=on-failure
 RestartSec=4
 StandardOutput=journal

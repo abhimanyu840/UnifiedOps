@@ -3,105 +3,122 @@
 ## System Context (Windows)
 - **OS**: Windows 11, Terminal: PowerShell (pwsh) only
 - **Username**: abhim
-- **Python command**: Use `python` not `python3`
-- **Paths**: Always use backslashes in file paths
-- **Never use Unix commands** — PowerShell equivalents only:
+- **Python command**: `python` not `python3`
+- **Paths**: Always use backslashes
+- **Never use Unix commands**:
   - `New-Item` not `touch`
   - `Get-ChildItem` not `ls`
   - `Get-Content` not `cat`
   - `Remove-Item` not `rm`
   - `Copy-Item` not `cp`
   - `Move-Item` not `mv`
-- **Virtual environments**: Always use `.venv`
-  - Create:   `python -m venv .venv`
+- **Virtual environments**: Always `.venv`
+  - Create: `python -m venv .venv`
   - Activate: `.venv\Scripts\Activate.ps1`
-  - Install:  `.venv\Scripts\pip.exe install ...`
 
-## Language and Framework Preferences
+## Language and Framework
 - **Backend**: Python 3.9+, FastAPI, Uvicorn, HTTPX, WebSockets
-- **Database**: InfluxDB v2 using `influxdb-client`
+- **Database**: InfluxDB v2, `influxdb-client`
 - **Frontend**: React 19, TypeScript, Vite, Zustand, `@tanstack/react-table`
-- **Deployment target**: RHEL 9.4, airgapped (no internet on target servers)
+- **Target**: RHEL 9.4, airgapped
 
-## Folder Structure Rules
-- `server/`   — FastAPI routers, services, server initialization logic
-- `listener/` — Location-specific syslog listener scripts
-  (`syslog_trap_listener_cdvl.py`, `_bcp.py`, `_sify.py`)
-- `frontend/` — React components, Vite config, frontend assets
-- `scripts/`  — Deployment, build, and utility PowerShell scripts
-- `deploy/`   — Deployment instructions, TLS setup, InfluxDB setup
-- `private/`  — Credentials, tokens, certs — NEVER committed to git
-- `docs/`     — Vendor PDFs and manuals for RAG indexing
-  (Hitachi VSP, NetApp ONTAP, Brocade FOS, Dell PowerStore)
+## Folder Structure
+- `server/`   — FastAPI routers, services, server init
+- `listener/` — Syslog listeners (`_cdvl.py`, `_bcp.py`, `_sify.py`)
+- `frontend/` — React components, Vite config, assets
+- `scripts/`  — PowerShell deployment and build scripts
+- `deploy/`   — RHEL deployment instructions, TLS, InfluxDB setup
+- `private/`  — Credentials, tokens, certs — NEVER committed
+- `docs/`     — Vendor PDFs for RAG (Hitachi, NetApp, Brocade, Dell)
 
-When creating new files always ask: which folder does this belong in?
-Never create files outside the project root.
-
-## Coding Style Rules
+## Coding Style
 
 ### Python
-- Follow PEP 8 strictly
-- Always use `from __future__ import annotations` at top of every file
-- Always use explicit typing from `typing`:
-  `Dict`, `List`, `Optional`, `Tuple`, `Any` — never `dict`, `list` etc.
-- Use `asyncio` for all FastAPI routes and WebSocket handlers
-- Use `ThreadPoolExecutor` for all blocking InfluxDB calls
-- Use `WsHub` class pattern for all WebSocket management
+- PEP 8, `from __future__ import annotations` every file
+- Explicit typing: `Dict`, `List`, `Optional`, `Tuple`, `Any`
+- `asyncio` for FastAPI/WebSocket, `ThreadPoolExecutor` for InfluxDB
+- `WsHub` pattern for all WebSocket management
 
 ### React / TypeScript
-- Modern React 19 functional components only — no class components
-- Strict TypeScript types on all props, state, and function signatures
-- No `any` type unless absolutely unavoidable
-- Use Zustand stores for all shared/global state
-- Use `@tanstack/react-table` for all data grids and tables
-- Tailwind CSS only — no inline styles, no CSS modules
+- React 19 functional components, strict TypeScript
+- No `any`, Zustand for state, `@tanstack/react-table` for grids
+- Tailwind CSS only
 
 ### Listeners
-- Keep listener scripts flat and self-contained per location
-- No imports that cross-contaminate `_cdvl`, `_bcp`, `_sify` logic
-- Listeners must be readable as standalone scripts
+- Self-contained per location, no cross-location imports
 
-## MCP Servers Available
-These MCP servers are registered and active in Antigravity:
+## MCP Servers Active
 
-| Server | Trigger | Use for |
-|---|---|---|
-| ollama | @qwen @gemma @vision @screenshot | Local models, private work |
-| nvidia-llm-router | @route | Auto-pick best NIM model |
-| nvidia-aiq | @aiq | Deep research, vendor doc questions |
-| nvidia-rag | @rag | Search indexed vendor PDFs in docs\ |
+| Server | Trigger | Purpose | Auto-runs? |
+|---|---|---|---|
+| ollama | @qwen @gemma @vision @screenshot | Local models | No |
+| nvidia-llm-router | @route | Auto model selection | No |
+| nvidia-aiq | @aiq | Deep research agent | No |
+| nvidia-rag | @rag | Vendor PDF search | No |
+| nvidia-review | @review | Senior code review | NO — on-demand only |
+| nvidia-docgen | @docgen | Doc generation | NO — on-demand only |
 
-## NVIDIA NIM Usage Rules
-- NVIDIA NIM is cloud infrastructure — same privacy rules as Antigravity
-- Never send `private\` files, credentials, IPs, or `.env` to NIM
-- Never send SAN configs, LUN mappings, or array credentials to NIM
-- Use @route when unsure which NIM model to use — it auto-selects
+## ON-DEMAND ONLY — Critical Rules
 
-## RAG / Vendor PDF Workflow
-- Put all vendor PDFs in `docs\` folder
+### @review trigger
+NEVER call automatically. Only when user explicitly requests a review.
+
+Usage patterns:
+- `@review [paste code here]` — standard code review
+- `@review architecture` — full architecture audit
+- `@review security [paste code]` — security audit
+- `@review performance [paste function]` — perf review
+
+Uses: Nemotron Super 120B as senior engineer persona
+Covers: bugs, security, performance, readability, best practices
+
+### @docgen trigger
+NEVER call automatically. Only when user explicitly requests docs.
+
+Usage patterns:
+- `@docgen readme` — generate full README.md from codebase
+- `@docgen api [paste routes]` — generate API documentation
+- `@docgen runbook [paste deploy script]` — RHEL runbook
+- `@docgen docstring [paste function]` — add Python docstrings
+- `@docgen changelog [paste git log]` — generate CHANGELOG.md
+- `@docgen adr [describe decision]` — Architecture Decision Record
+- `@docgen component [paste React component]` — component docs
+
+Uses: Kimi K2.6 (256K context, multimodal, long-horizon)
+
+## New Models Available (kimi-k2.6 and minimax-m3)
+
+### nvidia-kimi-new (moonshotai/kimi-k2.6)
+- 1T MoE, 32B active, 256K context
+- Supports 300 sequential tool calls — best for long agentic workflows
+- Multimodal: text, image, video input
+- Use for: complex multi-step tasks, doc generation, long-horizon coding
+
+### nvidia-m3 (minimaxai/minimax-m3)
+- 428B MoE, 1M context, native multimodal
+- Long-horizon coding: 8+ hours autonomous sessions
+- Use for: very long coding sessions, entire feature builds
+
+## NVIDIA NIM Rules
+- NIM is cloud — same privacy rules as Antigravity
+- Never send `private\` files, credentials, IPs, `.env` to NIM
+- Never send SAN configs or array credentials to NIM
+- @review and @docgen are NIM-powered — never pass private files
+
+## RAG Workflow
+- Put vendor PDFs in `docs\` folder
 - Index once: `python nvidia_rag_mcp.py --index`
-- Then use `@rag` for any vendor doc question in Antigravity chat
-- For one-off large PDF: use nvidia-context (deepseek-v4-flash, 1M tokens)
-- For repeated queries: always use @rag (faster, cited, no credit cost)
+- Use @rag for any vendor doc question
+- For one-off large PDF: nvidia-context (1M tokens)
 
 ## What NOT to Auto-Run
-- **Tests**: Do NOT run unit or integration tests automatically
-- **Deployments**: Do NOT run installation scripts or systemd units
-  without explicit permission
-- **Database**: Do NOT run InfluxDB setup or any data operations
-- **Packages**: Do NOT install new packages without asking — airgapped
-  system requires offline RPM/wheel bundling
-- **Bulk edits**: Always show a diff or file list before editing
-  multiple files at once
-- **Outside root**: Never create or modify files outside project root
+- No tests, migrations, deploys without asking
+- No new packages without asking (airgapped — needs offline bundling)
+- No files outside project root
+- No @review or @docgen without explicit user request
+- Always show diff before bulk edits
 
-## Git Commit Conventions
-- `feat:`     — new features     (`feat: add BCP listener support`)
-- `fix:`      — bug fixes        (`fix: resolve websocket connection drop`)
-- `refactor:` — restructuring    (`refactor: extract influx pool to service`)
-- `docs:`     — documentation    (`docs: update INSTALL.md with TLS matrix`)
-- `chore:`    — maintenance      (`chore: update .gitignore for private dir`)
-
-**Always commit after completing every task.**
-**Never commit files from `private\` directory.**
-**Verify `private\` and `.env` are in `.gitignore` before first commit.**
+## Git Conventions
+- `feat:` `fix:` `refactor:` `docs:` `chore:`
+- Commit after every completed task
+- Never commit `private\` or `.env`

@@ -3,192 +3,185 @@
 ## Project Overview
 UnifiedOps v2 (Hi-Track Alert v1.4.1) is an airgapped storage automation
 and monitoring solution designed to run across a 4-server topology on
-RHEL 9.4. The system ingests syslog UDP packets from storage arrays across
-three pipeline VMs (CDVL, BCP, SIFY) using Python listener scripts, and
-writes the telemetry data to a local InfluxDB instance on each node. A
-centralized UI VM hosts a Python FastAPI backend that proxies requests to
-the pipeline VMs and serves a React/Vite frontend dashboard, providing
-operators with real-time alerts pushed via WebSockets.
+RHEL 9.4. The system ingests syslog UDP packets from storage arrays
+across three pipeline VMs (CDVL, BCP, SIFY) using Python listener
+scripts, and writes telemetry data to a local InfluxDB instance on each
+node. A centralized UI VM hosts a Python FastAPI backend that proxies
+requests to the pipeline VMs and serves a React/Vite frontend dashboard,
+providing operators with real-time alerts pushed via WebSockets.
+
+## CRITICAL — Model Priority Ladder (Credit Conservation)
+Claude Sonnet/Opus quota drains fast with weekly hard caps. Opus costs
+~8x Sonnet for the same task. ALWAYS try lower tiers first:
+
+```
+1. Local Ollama       (free, unlimited)  -> @qwen, @gemma, @vision, @screenshot
+2. NVIDIA NIM          (free, generous)   -> nvidia-coder, nvidia-reason, etc.
+3. Ollama Cloud        (free, 2nd cloud)  -> ollama-cloud-coder, ollama-cloud-reason
+4. Free linters        (zero AI cost)     -> eslint MCP, python-analyzer MCP
+5. Claude Sonnet 4.6   (LAST RESORT)      -> UI polish/design taste only
+6. Claude Opus 4.6     (EMERGENCY ONLY)   -> genuine architecture calls only
+```
+
+Before any Claude call, confirm: "Did tiers 1-4 fail to produce
+acceptable quality?" If unsure, try tier 1-3 first.
 
 ## Model Selection Rules
 
-### Local Models (Privacy-Safe / Offline / Unlimited)
-- **Default coding**: Use `qwen3-coder:30b` via @qwen for all general
-  backend coding, API routes, FastAPI services, InfluxDB queries,
-  WebSocket logic, and listener scripts.
-- **Debugging / reasoning**: Use `deepseek-r1:14b` via @gemma for complex
-  bug tracing, architectural decisions, data flow analysis across the
-  4-server topology, and explaining why something is broken step by step.
-- **Fast edits**: Use `qwen2.5-coder:1.5b` for single line fixes,
-  renaming, formatting, minor syntax corrections.
-- **Quick screenshots**: Use `moondream2` via @vision for fast UI
-  screenshot analysis, reading dashboard images, 4GB VRAM safe.
-- **Deep image analysis**: Use `gemma3:4b` via @screenshot for detailed
-  UI feedback, complex diagrams, SAN/network topology images, 4GB VRAM safe.
+### Tier 1 — Local Models (Privacy-Safe / Offline / Unlimited / FREE)
+- **Default coding**: `qwen3-coder:30b` via @qwen — backend, APIs,
+  FastAPI, InfluxDB queries, WebSocket logic, listener scripts
+- **Debugging / reasoning**: `deepseek-r1:14b` via @gemma — bug
+  tracing, architecture decisions, data flow analysis
+- **Fast edits**: `qwen2.5-coder:1.5b` — single line fixes, renaming
+- **Quick screenshots**: `moondream2` via @vision — UI screenshots
+- **Deep image analysis**: `gemma3:4b` via @screenshot — diagrams,
+  SAN/network topology images
 
-### Antigravity Cloud Models (Primary Cloud Layer)
-- **UI / Frontend**: Use Claude Sonnet 4.6 Thinking for all React
-  components, TypeScript, Tailwind CSS, Zustand state, dashboard layout,
-  and design system work.
-- **Complex architecture**: Use Claude Opus 4.6 Thinking for large
-  multi-file refactors, system design decisions. Use sparingly — slow.
-- **Everyday tasks**: Use Gemini 3.5 Flash (High) for quick summaries,
-  explanations, documentation, anything not requiring deep reasoning.
-- **Browser / deploy**: Use Gemini 3.1 Pro (High) for browser subagent
-  tasks, RHEL deployment validation, Google Cloud integrations.
+### Tier 2 — NVIDIA NIM (Free Tier, Generous Limits, Cloud)
+Never send private files or credentials — it is cloud infrastructure.
 
-### NVIDIA NIM Models (Secondary Cloud Layer / Antigravity Credit Fallback)
-Use when Antigravity cloud credits run low. Never send private files or
-credentials to NIM — it is cloud infrastructure same as Antigravity.
-
-**Coding & Agentic**
-- **nvidia-coder** (`qwen3-coder:480b`): Frontier coding fallback when
-  Claude Sonnet or Gemini runs out.
-- **nvidia-agent** (`mistral/mistral-nemotron`): Best function calling
-  model on NIM. Use for agentic workflows, tool use, Antigravity agents.
-- **nvidia-gpt** (`gpt-oss-120b`): General coding fallback, efficient
-  MoE — good quality at lower credit cost.
-- **nvidia-glm** (`zhipuai/glm-5.1`): Strong agentic coding with SOTA
-  tool calling, 744B but credit-efficient.
+**Coding and Agentic**
+- nvidia-coder (qwen3-coder:480b) — frontier coding, try BEFORE Claude
+- nvidia-agent (mistral/mistral-nemotron) — function calling, agents
+- nvidia-gpt (gpt-oss-120b) — general coding, credit-efficient
+- nvidia-glm (zhipuai/glm-5.1) — agentic coding, SOTA tool calling
+- nvidia-qwen235 (qwen/qwen3-235b-a22b) — strong UI/reasoning blend,
+  try BEFORE Claude Sonnet for component structure decisions
 
 **Reasoning**
-- **nvidia-reason** (`deepseek-r1:671b`): Full R1 reasoning — not a
-  distillation. Far stronger than local 14b for complex analysis.
-- **nvidia-kimi** (`moonshotai/kimi-k2.5`): 1M context + strong
-  reasoning. Alternative to deepseek-r1 for long analysis tasks.
-- **nvidia-qwq** (`qwen/qwq-32b`): Chain-of-thought reasoning, smaller
-  and faster than 671b for step-by-step debugging.
+- nvidia-reason (deepseek-r1:671b) — full R1, try BEFORE Claude Opus
+- nvidia-kimi-new (moonshotai/kimi-k2.6) — 256K context, 300
+  sequential tool calls, multimodal, long-horizon agentic
+- nvidia-qwq (qwen/qwq-32b) — fast chain-of-thought debugging
+- nvidia-nemotron (nvidia/nemotron-3-super-120b-a12b) — 1M context
+- nvidia-step (stepfun-ai/step-3.5-flash) — agentic planning
 
-**General & Fast**
-- **nvidia-fast** (`minimax-m2.7`): 230B sparse MoE, strong all-round.
-  Use when Gemini Flash runs out.
-- **nvidia-llama** (`meta/llama-3.3-70b-instruct`): Reliable fallback,
-  lower credit cost than frontier models.
-- **nvidia-phi** (`microsoft/phi-4-mini-flash-reasoning`): Tiny but
-  capable, very fast, minimal credit usage for quick lookups.
+**General and Fast**
+- nvidia-fast (minimax-m2.7) — try BEFORE Gemini Flash if rate limited
+- nvidia-m3 (minimaxai/minimax-m3) — 1M context, 8+ hour coding sessions
+- nvidia-llama (meta/llama-3.3-70b-instruct) — cheap reliable fallback
+- nvidia-phi (microsoft/phi-4-mini-flash-reasoning) — quick lookups
 
 **Long Context**
-- **nvidia-context** (`deepseek-v4-flash`): 1M context window. Use for
-  large codebase analysis, whole-repo tasks, 700+ page vendor PDFs.
+- nvidia-context (deepseek-v4-flash) — 1M context, large files, PDFs
 
-**Vision & Document Parsing**
-- **nvidia-vision** (`gemma4:e4b`): Cloud vision for complex diagrams,
-  network topology images, SAN architecture drawings.
-- **nvidia-parse** (`nvidia/nemotron-parse`): Extracts text and metadata
-  from images/PDFs — built for document parsing, tables, charts.
-- **nvidia-docparse** (`nvidia/nemoretriever-parse`): OCR + table
-  extraction from scanned vendor documents.
+**ON-DEMAND ONLY — never auto-run**
+- nvidia-review (nemotron-3-super-120b) via @review — senior review
+- nvidia-docgen (kimi-k2.6) via @docgen — documentation generator
+- nvidia-starcoder (starcoder2-7b) — code-specific doc support
 
-**Embeddings & RAG**
-- **nvidia-embed** (`nvidia/nv-embedqa-e5-v5`): General RAG embeddings
-  for vendor manual search.
-- **nvidia-embedcode** (`nvidia/nv-embedcode-7b`): Code-specific
-  embeddings — better RAG over your Python/FastAPI codebase.
-- **nvidia-rerank** (`nvidia/nv-rerankqa-mistral-4b-v3`): Reranks RAG
-  results for significantly better accuracy.
+**Vision and Document Parsing**
+- nvidia-vision (gemma4:e4b), nvidia-parse, nvidia-docparse
+
+**Embeddings and RAG**
+- nvidia-embed, nvidia-embedcode, nvidia-rerank
 
 **Safety**
-- **nvidia-safety** (`nvidia/nemotron-content-safety`): Content
-  moderation layer — screen prompts before cloud submission.
+- nvidia-safety (nemotron-content-safety)
+
+### Tier 3 — Ollama Cloud (Free Tier, Second Cloud Option)
+Use when NIM is rate-limited, or to cross-check NIM results.
+- **ollama-cloud-coder** (qwen3-coder:480b-cloud) — same model family
+  as nvidia-coder, different infra. Use if NIM coding models are slow
+  or rate-limited.
+- **ollama-cloud-reason** (nemotron-3-ultra:cloud) — heavy reasoning,
+  alternative to nvidia-reason when NIM is busy.
+- Note: Ollama free cloud quota is limited — monitor usage, prefer
+  level 1-2 models on Ollama cloud per Ollama's own rating system.
+
+### Tier 4 — Free Skills (Zero AI Cost — Use First for These Tasks)
+These run with NO model cost at all. Always run before asking any
+AI model to review code style/quality.
+
+| Skill | MCP Server | Trigger | Covers |
+|---|---|---|---|
+| ESLint | `eslint` | "lint this file" | JS/TS style, errors, framework rules |
+| Ruff + Vulture | `python-analyzer` | "analyze this Python file" | Python lint, dead code, style |
+
+Workflow: run free linter FIRST → fix mechanical issues yourself or
+with @qwen → only escalate to @review (AI) for logic/architecture
+issues the linter can't catch.
+
+### Tier 5 — Antigravity Cloud Claude (LAST RESORT)
+- **UI / Frontend**: Claude Sonnet 4.6 Thinking — ONLY after
+  nvidia-coder and nvidia-qwen235 fail to produce acceptable quality
+- **Complex architecture**: Claude Opus 4.6 Thinking — ONLY after
+  nvidia-reason and nvidia-nemotron fail. Costs ~8x Sonnet.
+- **Everyday tasks**: Gemini 3.5 Flash (High) — true default, separate
+  quota pool from Claude, far less quota-intensive
+- **Browser / deploy**: Gemini 3.1 Pro (High)
 
 ### NVIDIA Skills / MCP Servers
-- **@route**: Auto-routes prompt to best NIM model by task type.
-  Use instead of manually picking a model when unsure.
-- **@aiq**: NVIDIA AI-Q deep research agent with storage/SAN context.
-  Use for deep vendor doc questions, cited answers, multi-step analysis.
-- **@rag**: RAG pipeline over indexed vendor PDFs (Hitachi, NetApp,
-  Brocade, Dell manuals in docs\ folder).
-  Use for: "find CLI command for X in the manual".
 
-### Fallback Chain (try each level before moving to next)
-
-| Need | Level 1 Primary | Level 2 NIM | Level 3 Local |
+| Server | Trigger | Use for | Auto-runs? |
 |---|---|---|---|
-| UI / Frontend | Claude Sonnet 4.6 | nvidia-coder | @screenshot |
-| Architecture | Claude Opus 4.6 | nvidia-reason | @gemma |
-| General coding | @qwen (local) | nvidia-coder | nvidia-gpt |
-| Everyday tasks | Gemini 3.5 Flash | nvidia-fast | @qwen |
-| Agentic workflows | Gemini 3.1 Pro | nvidia-agent | @qwen |
-| Large files / PDFs | nvidia-context | @rag (indexed) | @gemma |
-| Vendor doc search | @rag | nvidia-context | @aiq |
-| Vision / diagrams | nvidia-vision | @screenshot | @vision |
-| Quick screenshots | @vision (local) | @screenshot | — |
-| All cloud down | — | — | Full local only |
-| Private / credentials | @qwen or @gemma only | Never NIM | — |
+| ollama | @qwen @gemma @vision @screenshot | Local models | No |
+| nvidia-llm-router | @route | Auto-pick best NIM model | No |
+| nvidia-aiq | @aiq | Deep research, vendor docs | No |
+| nvidia-rag | @rag | Search indexed vendor PDFs | No |
+| nvidia-review | @review | Senior code review | NO — on-demand only |
+| nvidia-docgen | @docgen | Documentation generator | NO — on-demand only |
+| eslint | (auto via lint request) | JS/TS linting | Free, no AI cost |
+| python-analyzer | (auto via lint request) | Python lint/dead code | Free, no AI cost |
+
+## Model Transparency Rule
+Always state which model answered: `[Model: <name>]`
+If Claude was used, state why lower tiers were insufficient.
 
 ## Security Rules
-- **NEVER use cloud models (Antigravity OR NVIDIA NIM) for**:
+- **NEVER use ANY cloud (Antigravity, NIM, or Ollama Cloud) for**:
   - Files inside `private\` directory
-  - InfluxDB tokens, self-signed TLS certificates, API keys
-  - Any `.env` files or secrets configs
-  - Deployment scripts containing server IPs or credentials
-  - RHEL server usernames, passwords, or SSH keys
+  - InfluxDB tokens, TLS certificates, API keys, `.env` files
+  - Deployment scripts with server IPs or credentials
+  - RHEL usernames, passwords, SSH keys
   - FC/SAN zone configs, LUN mappings, RAID group data
-  - SNMP community strings or array management credentials
-- **NVIDIA NIM is cloud** — treat identically to Antigravity cloud.
-- **Always use local @qwen or @gemma for the above.**
+  - SNMP strings or array management credentials
+- **Ollama Cloud is cloud infrastructure** — same rules as NIM/Antigravity
+- **@review and @docgen are cloud** — never pass private files to them
 
 ## Project-Specific Agent Rules
 
 ### Backend (Python)
-- Write Python 3.9 compatible code only
-- Use `from __future__ import annotations` at top of every file
-- Use explicit typing: `Dict`, `List`, `Optional`, `Tuple` — not `dict`,
-  `list` etc.
-- Respect existing FastAPI patterns: `ThreadPoolExecutor` for InfluxDB
-  connections and `WsHub` for WebSocket management
-- Never introduce new dependencies without asking first — airgapped system
+- Python 3.9 only, `from __future__ import annotations` every file
+- Explicit typing: `Dict`, `List`, `Optional`, `Tuple` from `typing`
+- `ThreadPoolExecutor` for InfluxDB, `WsHub` for WebSocket
+- Run `python-analyzer` (Ruff) before any AI review of Python changes
+- Never add dependencies without asking — airgapped system
 
 ### Frontend (React)
-- Write React 19 functional components with TypeScript only
-- Use Vite — no CRA or Next.js
-- Use Zustand for global state, `@tanstack/react-table` for data grids
-- Use Tailwind CSS only — no inline styles, no CSS modules
-- Use Claude Sonnet 4.6 Thinking for all frontend work
-- Fall back to nvidia-coder if Sonnet credits run out
-- Fall back to @screenshot (gemma3:4b) if all cloud unavailable
+- React 19 functional components, TypeScript only
+- Vite, Zustand, `@tanstack/react-table`, Tailwind CSS only
+- Run `eslint` before any AI review of JS/TS changes
+- UI priority: nvidia-coder → nvidia-qwen235 → Claude Sonnet (last resort)
 
 ### Syslog Listeners
-- Each listener must remain fully self-contained per location
-- No cross-location imports: `_cdvl`, `_bcp`, `_sify` are isolated
-- Never create shared cross-location dependencies
+- Self-contained per location: `_cdvl`, `_bcp`, `_sify` isolated
+- @qwen only — never escalate listener edits to cloud unless reviewing
+  logic (not the actual credentialed config)
 
 ### Deployment
-- Target RHEL 9.4 offline installation — RPMs and Python wheels only
-- Scripts written in PowerShell on Windows, execute on RHEL
-- Always use @qwen for deployment scripts — never any cloud model
+- RHEL 9.4 offline — RPMs and wheels only
+- @qwen only for deploy scripts — never any cloud tier
 
 ## Task-to-Model Quick Reference
 
-| Task | Primary | Fallback 1 | Fallback 2 |
-|---|---|---|---|
-| FastAPI route / endpoint | @qwen (30b) | nvidia-coder (480b) | nvidia-gpt |
-| InfluxDB query / schema | @qwen (30b) | nvidia-coder (480b) | — |
-| WebSocket / WsHub logic | @qwen (30b) | nvidia-coder (480b) | — |
-| Syslog listener changes | @qwen (local only) | — never cloud — | — |
-| Bug trace / data flow | @gemma (14b) | nvidia-reason (671b) | nvidia-qwq |
-| Architecture decision | @gemma (14b) | nvidia-reason (671b) | @aiq |
-| React component / UI | Claude Sonnet 4.6 | nvidia-coder (480b) | @screenshot |
-| Dashboard layout / CSS | Claude Sonnet 4.6 | nvidia-coder (480b) | @screenshot |
-| Tailwind / Zustand | Claude Sonnet 4.6 | nvidia-coder (480b) | @screenshot |
-| TanStack table / grid | Claude Sonnet 4.6 | nvidia-coder (480b) | @screenshot |
-| Large multi-file refactor | Claude Opus 4.6 | nvidia-reason (671b) | @gemma |
-| System design | Claude Opus 4.6 | nvidia-reason (671b) | @aiq |
-| Agentic workflow | Gemini 3.1 Pro | nvidia-agent | @qwen |
-| Whole repo analysis | nvidia-context (1M) | @gemma (14b) | — |
-| Vendor PDF 700 pages | @rag (indexed) | nvidia-context (1M) | @aiq |
-| SAN / network diagrams | nvidia-vision | @screenshot (4b) | — |
-| Quick UI screenshots | @vision (moondream2) | @screenshot (4b) | — |
-| Docs / summaries | Gemini 3.5 Flash | nvidia-fast (m2.7) | @qwen |
-| Function calling / agents | nvidia-agent | nvidia-glm | @qwen |
-| Code RAG / search | nvidia-embedcode | nvidia-embed | — |
-| Auto model selection | @route | — | — |
-| Deep vendor doc research | @aiq | @rag | nvidia-context |
-| RHEL deploy scripts | @qwen (local only) | — never cloud — | — |
-| Private / credentials | @qwen or @gemma only | — never cloud — | — |
+| Task | Try 1st | Try 2nd | Try 3rd | Last Resort |
+|---|---|---|---|---|
+| FastAPI route | @qwen | nvidia-coder | ollama-cloud-coder | — |
+| Bug trace | @gemma | nvidia-reason | nvidia-qwq | — |
+| React component | nvidia-coder | nvidia-qwen235 | @screenshot | Claude Sonnet |
+| Architecture | @gemma | nvidia-reason | nvidia-nemotron | Claude Opus |
+| Lint JS/TS | eslint (free) | — | — | — |
+| Lint Python | python-analyzer (free) | — | — | — |
+| Long coding session | nvidia-m3 | nvidia-kimi-new | @qwen | — |
+| Vendor PDF search | @rag | nvidia-context | @aiq | — |
+| Code review | @review (on-demand) | — | — | — |
+| Documentation | @docgen (on-demand) | — | — | — |
+| Everyday/docs | Gemini Flash | nvidia-fast | @qwen | — |
+| Private/credentials | @qwen or @gemma ONLY | — | — | never cloud |
 
 ## Git Rules
-- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
+- `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 - Commit after every completed task
-- Never commit files from `private\` directory
-- Add `private\` and `.env` to `.gitignore` if not already there
+- Never commit `private\` or `.env`

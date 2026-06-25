@@ -128,7 +128,7 @@ function SystemColumn({ rows, max, onClick }: ColProps) {
   return (
     <div className="systems-col">
       {rows.map(s => {
-        const palette = LOC_COLOR[s.location];
+        const palette = LOC_COLOR[s.location as keyof typeof LOC_COLOR] || LOC_COLOR.ALL;
         const width = `${Math.max(6, (s.alerts / max) * 100)}%`;
         return (
           <div

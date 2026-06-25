@@ -118,6 +118,13 @@ logging.basicConfig(
 )
 LOG = logging.getLogger("hitrack.listener.dell.cdvl")
 
+raw_log = logging.getLogger("raw_syslog_dell_cdvl")
+raw_log.setLevel(logging.INFO)
+raw_fh = logging.FileHandler("syslog_trap_listener_dell_cdvl_raw_syslog_data.log")
+raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+raw_log.addHandler(raw_fh)
+raw_log.propagate = False
+
 DELL_IP_MAP = {
     # "10.227.64.85": "PowerMax_8500-CDVL",
 }
@@ -199,6 +206,13 @@ else:
 def _record(source_ip, raw):
     global _msg_count
     _msg_count += 1
+    try:
+        raw_str = raw.decode("utf-8", errors="replace").strip()
+        if raw_str:
+            raw_log.info(f"[{source_ip}] {raw_str}")
+    except Exception:
+        pass
+
     body = raw.decode("utf-8", errors="replace").strip()
     preview = body.replace("\n", " ")[:240]
     hostname = ""
@@ -219,6 +233,7 @@ def _record(source_ip, raw):
             .tag("severity", severity)
             .tag("trap_category", trap_category)
             .field("bytes", len(raw)).field("preview", preview).field("raw_message", body)
+            .field("error_message", body)
             .time(datetime.now(timezone.utc), WritePrecision.NS)
         )
         _write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)

@@ -249,6 +249,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -270,7 +271,24 @@
   gap: 1px 16px;
   flex: 1;
   min-height: 0;
-  align-content: center;
+  max-height: 235px;
+  align-content: start;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.systems-grid::-webkit-scrollbar {
+  width: 4px;
+}
+.systems-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.systems-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 77, 79, 0.4);
+  border-radius: 2px;
+}
+.systems-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--sev-critical);
 }
 
 .systems-grid--1col { grid-template-columns: 1fr; }

@@ -1,0 +1,110 @@
+; ============================================================================
+; UnifiedOps UI server — FastAPI (server.py)
+;
+; Responsibilities:
+;   - Pools alert data from all vendor InfluxDB buckets across the
+;     3 listener servers (every 5 s) and pushes to React via WebSocket.
+;   - Serves the built React bundle (frontend/dist/) over HTTP/HTTPS.
+;   - Proxies /influx* to the 3 listener-server InfluxDBs for ad-hoc
+;     Flux queries from the browser when /api can't serve directly.
+;
+; Install:
+;   sudo cp deploy/unifiedops-ui-server.service /etc/systemd/system/
+;   sudo systemctl edit --full unifiedops-ui-server
+;   sudo systemctl daemon-reload
+;   sudo systemctl enable --now unifiedops-ui-server
+;
+; ============================================================================
+[Unit]
+Description=UnifiedOps v2 UI server (FastAPI alerts/dashboard WebSocket)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=unifiedops
+Group=unifiedops
+WorkingDirectory=/opt/unifiedops
+
+# --- FastAPI listen address ---
+Environment="HITRACK_UI_HOST=0.0.0.0"
+Environment="HITRACK_UI_PORT=8001"
+Environment="HITRACK_UI_DIST=/opt/unifiedops/frontend/dist"
+Environment="HITRACK_UI_TLS_CERT="
+Environment="HITRACK_UI_TLS_KEY="
+Environment="HITRACK_UI_TLS_KEY_PASSWORD="
+
+# --- Runtime UI config ---
+Environment="UNIFIEDOPS_PUBLIC_BRAND_TITLE=UnifiedOps"
+Environment="UNIFIEDOPS_PUBLIC_BRAND_LOGO_LEFT=/wipro.png"
+Environment="UNIFIEDOPS_PUBLIC_BRAND_LOGO_RIGHT=/hdfc.png"
+Environment="UNIFIEDOPS_PUBLIC_DASHBOARD_TITLE=UnifiedOps v2"
+Environment="UNIFIEDOPS_PUBLIC_DEFAULT_RANGE=6h"
+Environment="UNIFIEDOPS_PUBLIC_API_BASE="
+Environment="UNIFIEDOPS_PUBLIC_WS_BASE="
+Environment="UNIFIEDOPS_PUBLIC_SITES=CDVL,BCP,SIFY"
+Environment="UNIFIEDOPS_PUBLIC_VENDORS=hitachi,brocade,netapp,dell"
+Environment="UNIFIEDOPS_PUBLIC_REFRESH_HINT_TEXT=Live · 5s"
+
+# --- Alert InfluxDBs ---
+Environment="HITRACK_INFLUX_CDVL_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_INFLUX_CDVL_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_INFLUX_CDVL_ORG=HDFC"
+Environment="HITRACK_INFLUX_CDVL_BUCKET=SYSLOG_BRCD_CDVL_SIFY_Bucket"
+
+Environment="HITRACK_INFLUX_BCP_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_INFLUX_BCP_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_INFLUX_BCP_ORG=HDFC"
+Environment="HITRACK_INFLUX_BCP_BUCKET=SYSLOG_BRCD_BCP_UAT_Bucket"
+
+Environment="HITRACK_INFLUX_SIFY_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_INFLUX_SIFY_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_INFLUX_SIFY_ORG=HDFC"
+Environment="HITRACK_INFLUX_SIFY_BUCKET=SYSLOG_BRCD_CDVL_SIFY_Bucket"
+
+# --- Heartbeat InfluxDBs ---
+Environment="HITRACK_HEARTBEAT_CDVL_URL=http://<CDVL_VM_IP>:8086"
+Environment="HITRACK_HEARTBEAT_CDVL_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_HEARTBEAT_CDVL_ORG=HDFC"
+Environment="HITRACK_HEARTBEAT_CDVL_BUCKET=unifiedops-influx-health-report-cdvl"
+
+Environment="HITRACK_HEARTBEAT_BCP_URL=http://<BCP_VM_IP>:8086"
+Environment="HITRACK_HEARTBEAT_BCP_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_HEARTBEAT_BCP_ORG=HDFC"
+Environment="HITRACK_HEARTBEAT_BCP_BUCKET=unifiedops-influx-health-report-bcp"
+
+Environment="HITRACK_HEARTBEAT_SIFY_URL=http://<SIFY_VM_IP>:8086"
+Environment="HITRACK_HEARTBEAT_SIFY_TOKEN=<INSERT_INFLUX_TOKEN_HERE>"
+Environment="HITRACK_HEARTBEAT_SIFY_ORG=HDFC"
+Environment="HITRACK_HEARTBEAT_SIFY_BUCKET=unifiedops-influx-health-report-sify"
+
+# --- Poll cadences ---
+Environment="HITRACK_PIPELINE_POLL_SECS=5"
+Environment="HITRACK_LISTENER_POLL_SECS=10"
+Environment="HITRACK_LISTENER_DOWN_THRESHOLD_S=30"
+
+# --- Threadpool + httpx pool ---
+Environment="HITRACK_THREAD_WORKERS=64"
+Environment="HITRACK_HTTPX_MAX_CONNECTIONS=200"
+Environment="HITRACK_HTTPX_MAX_KEEPALIVE=64"
+
+# --- Misc ---
+Environment="HITRACK_VERIFY_TLS=1"
+Environment="HITRACK_CORS_ORIGINS=*"
+Environment="HITRACK_DASH_CACHE_TTL=3.0"
+
+ExecStart=/usr/bin/python /opt/unifiedops/server/server.py
+Restart=on-failure
+RestartSec=4
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/unifiedops /var/lib/unifiedops
+
+[Install]
+WantedBy=multi-user.target
