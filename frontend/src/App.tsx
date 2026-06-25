@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 // Microservice imports — go through each service's `index.ts` barrel,
 // never reach into a service's internals from another service.
 import { Header, NTPCard }                from './services/dashboard';
@@ -349,8 +349,23 @@ export default function App() {
   // Flux, no REST polling.
   const dashSnap     = useDashboardStore(s => s.snapshot);
   const dashHydrated = useDashboardStore(s => s.hydrated);
-  // Show skeleton placeholders until the first dashboard frame lands.
-  const dashLoading  = !dashHydrated;
+  const [fakeLoading, setFakeLoading] = useState(false);
+  const fakeLoadingTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    setFakeLoading(true);
+    if (fakeLoadingTimer.current) window.clearTimeout(fakeLoadingTimer.current);
+    fakeLoadingTimer.current = window.setTimeout(() => {
+      setFakeLoading(false);
+    }, 400); // Show skeleton for 400ms on filter switch
+    return () => {
+      if (fakeLoadingTimer.current) window.clearTimeout(fakeLoadingTimer.current);
+    };
+  }, [selectedVendor, locations.join(','), range.kind === 'relative' ? range.key : range.start]);
+
+  // Show skeleton placeholders until the first dashboard frame lands,
+  // or briefly when the user switches vendor/location/range to provide UI feedback.
+  const dashLoading  = !dashHydrated || fakeLoading;
 
   // The subscription is just (range, sites). Memoised so the WS hook's
   // dep array only triggers a re-subscribe when something actually
