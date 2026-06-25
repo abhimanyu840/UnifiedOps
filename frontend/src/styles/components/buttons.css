@@ -36,9 +36,13 @@
   box-shadow: 0 0 12px rgba(251, 191, 36, 0.25);
 }
 
-.status-pill--has-down {
+.status-pill--has-down,
+.status-pill--has-hover {
   cursor: help;
   position: relative;
+}
+
+.status-pill--has-down {
   padding-right: 6px;
 }
 
