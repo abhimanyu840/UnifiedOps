@@ -144,9 +144,8 @@ export function DonutChart({
           <path
             key={s.key}
             d={arcPath(cx, cy, ro, rInner, s.start, s.end)}
-            fill={placeholder
-              ? 'rgba(148,163,184,0.12)'
-              : `url(#donut-grad-${s.d.name.replace(/[^a-zA-Z0-9_]/g, '_')})`}
+            fill={`url(#donut-grad-${s.d.name.replace(/[^a-zA-Z0-9_]/g, '_')})`}
+            fillOpacity={placeholder ? 0.15 : 1}
             stroke="#10141d"
             strokeWidth={2}
             style={{

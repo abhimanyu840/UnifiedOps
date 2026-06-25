@@ -32,8 +32,7 @@ export function NetAppBadge({ size = 40, ...rest }: Props) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" {...rest}>
       <rect width="100" height="100" rx="10" fill="#0067C5" />
-      <rect x="20" y="22" width="60" height="40" fill="#FFFFFF" />
-      <rect x="44" y="22" width="12" height="22" fill="#0067C5" />
+      <path d="M20 62 L20 22 L80 22 L80 62 L56 62 L56 40 L44 40 L44 62 Z" fill="#FFFFFF" />
       <text
         x="50"
         y="86"
@@ -43,7 +42,7 @@ export function NetAppBadge({ size = 40, ...rest }: Props) {
         fontSize="13"
         fill="#FFFFFF"
       >
-        NetApp
+        NetApp™
       </text>
     </svg>
   );
