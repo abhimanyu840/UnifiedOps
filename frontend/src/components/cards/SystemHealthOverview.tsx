@@ -26,29 +26,7 @@ export function SystemHealthOverview({
   infraDownListenersByVendor,
   loading,
 }: Props) {
-  if (loading) {
-    return (
-      <section className="health-section">
-        <div className="health-grid">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="health-card">
-              <div className="health-card__icon">
-                <Skeleton width={40} height={40} borderRadius="50%" />
-              </div>
-              <div className="health-card__body" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Skeleton width="60%" height={20} />
-                <Skeleton width="40%" height={32} />
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <Skeleton width="30%" height={16} />
-                  <Skeleton width="30%" height={16} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
+
 
   return (
     <section className="health-section">

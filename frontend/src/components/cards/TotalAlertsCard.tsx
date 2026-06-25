@@ -39,20 +39,7 @@ export function TotalAlertsCard({ total, delta, rangeLabel, spark, className, lo
     timeLabel: fmtTime(p.ts),
   }));
 
-  if (loading) {
-    return (
-      <Card className={`card--total ${className ?? ''}`}>
-        <CardTitle hint={rangeLabel}>Total Alerts</CardTitle>
-        <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Skeleton width="40%" height={48} />
-          <Skeleton width="60%" height={16} />
-        </div>
-        <div style={{ height: 64, padding: '0 4px', display: 'flex', alignItems: 'flex-end' }}>
-          <Skeleton width="100%" height="100%" borderRadius={0} />
-        </div>
-      </Card>
-    );
-  }
+
 
   return (
     <Card className={`card--total ${className ?? ''}`} ref={cardRef}>
@@ -60,43 +47,55 @@ export function TotalAlertsCard({ total, delta, rangeLabel, spark, className, lo
 
       <div className="total-body">
         <div className="total-meta">
-          <div className="total-value">{total}</div>
+          <div className="total-value">
+            {loading ? <Skeleton width={60} height={40} /> : total}
+          </div>
           <div className={`total-delta total-delta--${up ? 'up' : 'down'}`}>
-            <ArrowUpIcon
-              size={11}
-              style={{ transform: up ? 'none' : 'rotate(180deg)' }}
-            />
-            <span>
-              {up ? '+' : ''}{delta} vs previous {rangeLabel.toLowerCase()}
-            </span>
+            {loading ? <Skeleton width={120} height={16} /> : (
+              <>
+                <ArrowUpIcon
+                  size={11}
+                  style={{ transform: up ? 'none' : 'rotate(180deg)' }}
+                />
+                <span>
+                  {up ? '+' : ''}{delta} vs previous {rangeLabel.toLowerCase()}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       <div className="spark-host">
-        <AreaChart
-          data={chartData}
-          height={64}
-          padding={{ top: 6, right: 4, bottom: 0, left: 4 }}
-          lineColor="#FF7A6F"
-          lineWidth={1.75}
-          fillFrom="rgba(255, 122, 111, 0.40)"
-          fillTo="rgba(255, 77, 79, 0.04)"
-          showCrosshair={false}
-          showHoverDot={false}
-          interactionRef={cardRef}
-          onHoverChange={(idx: number | null, p: AreaPoint | null) => {
-            if (idx === null || !p) {
-              setPoint(null);
-              return;
-            }
-            setPoint({
-              value: p.value,
-              timeLabel: p.timeLabel ?? '',
-              tone: toneForValue(p.value),
-            });
-          }}
-        />
+        {loading ? (
+          <div style={{ height: 64, padding: '0 4px', display: 'flex', alignItems: 'flex-end' }}>
+            <Skeleton width="100%" height="100%" borderRadius={0} />
+          </div>
+        ) : (
+          <AreaChart
+            data={chartData}
+            height={64}
+            padding={{ top: 6, right: 4, bottom: 0, left: 4 }}
+            lineColor="#FF7A6F"
+            lineWidth={1.75}
+            fillFrom="rgba(255, 122, 111, 0.40)"
+            fillTo="rgba(255, 77, 79, 0.04)"
+            showCrosshair={false}
+            showHoverDot={false}
+            interactionRef={cardRef}
+            onHoverChange={(idx: number | null, p: AreaPoint | null) => {
+              if (idx === null || !p) {
+                setPoint(null);
+                return;
+              }
+              setPoint({
+                value: p.value,
+                timeLabel: p.timeLabel ?? '',
+                tone: toneForValue(p.value),
+              });
+            }}
+          />
+        )}
       </div>
 
       <SparkHoverTooltip ref={tipRef} point={point} />

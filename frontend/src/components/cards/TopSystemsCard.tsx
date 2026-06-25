@@ -77,18 +77,7 @@ export function TopSystemsCard({
   const col1 = useTwoCols ? filtered.slice(0, half) : filtered;
   const col2 = useTwoCols ? filtered.slice(half) : [];
 
-  if (loading) {
-    return (
-      <Card className={`card--top-systems ${className ?? ''}`}>
-        <CardTitle>Top Systems by Alerts</CardTitle>
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} width="100%" height={24} />
-          ))}
-        </div>
-      </Card>
-    );
-  }
+
 
   return (
     <Card className={`card--top-systems ${className ?? ''}`}>
@@ -127,8 +116,8 @@ export function TopSystemsCard({
       </CardTitle>
 
       <div className={`systems-grid ${useTwoCols ? '' : 'systems-grid--1col'}`}>
-        <SystemColumn rows={col1} max={max} onClick={onSystemClick} />
-        {useTwoCols && <SystemColumn rows={col2} max={max} onClick={onSystemClick} />}
+        <SystemColumn rows={col1} max={max} onClick={onSystemClick} loading={loading} />
+        {useTwoCols && <SystemColumn rows={col2} max={max} onClick={onSystemClick} loading={loading} />}
       </div>
     </Card>
   );
@@ -138,9 +127,24 @@ interface ColProps {
   rows: SystemRow[];
   max: number;
   onClick?: (row: SystemRow) => void;
+  loading?: boolean;
 }
 
-function SystemColumn({ rows, max, onClick }: ColProps) {
+function SystemColumn({ rows, max, onClick, loading }: ColProps) {
+  if (loading) {
+    return (
+      <div className="systems-col">
+        {Array.from({ length: Math.max(5, rows.length) }).map((_, i) => (
+          <div key={i} className="system-row" style={{ alignItems: 'center' }}>
+            <Skeleton width="30%" height={16} />
+            <Skeleton width={`${Math.max(20, Math.random() * 80)}%`} height={8} style={{ margin: '0 12px' }} />
+            <Skeleton width={24} height={16} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="systems-col">
       {rows.map(s => {
