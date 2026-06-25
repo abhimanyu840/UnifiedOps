@@ -1,24 +1,19 @@
 #!/usr/bin/env python3
 """
 =============================================================================
-  Syslog Trap Listener -> InfluxDB v2  (UnifiedOps -- NetApp ONTAP / EMS)
-  Location: CDVL
+  NetApp ONTAP EMS Syslog Listener -> InfluxDB v2  (UnifiedOps -- CDVL)
 =============================================================================
 
-Standalone listener for the CDVL NetApp pipeline. Receives NetApp ONTAP
-EMS (Event Management System) syslog forwards on UDP/TCP and writes
-parsed events into a dedicated Influx bucket on the local CDVL VM.
+Production listener for CDVL NetApp AFF systems.  Receives ONTAP EMS
+(Event Management System) syslog forwards on TCP/UDP port 516 and writes
+**hardware-only** alerts into a dedicated InfluxDB bucket.
 
-This is a *placeholder* parser — the binding and Influx writer are
-production-grade, but the trap-body parsing is intentionally minimal
-until the real NetApp EMS schema is reverse-engineered for this site.
-The point shape is:
+ONTAP EMS uses a legacy-netapp syslog format (RFC 3164 variant):
+    <PRI>TIMESTAMP NodeName: process: event.name:severity: Message text
 
-    measurement = "netapp_event"
-    tags        = vendor=NetApp, location=CDVL, source_ip, hostname?
-    fields      = bytes, preview (truncated body), severity_raw?
-
-A future iteration replaces the parser with the proper ONTAP EMS struct.
+The EMS event name (e.g. callhome.diskFailure, monitor.shelf.fault) is
+the key discriminator.  Only hardware-related events are persisted;
+everything else (audit, CIFS, NFS, LUN ops, etc.) is silently dropped.
 
 Configuration overrides (typical: /etc/hi-track/listener.netapp.cdvl.env):
 
@@ -27,113 +22,71 @@ Configuration overrides (typical: /etc/hi-track/listener.netapp.cdvl.env):
     HITRACK_INFLUX_ORG      default HDFC
     HITRACK_INFLUX_BUCKET   default NetApp_CDVL_Bucket
     HITRACK_LISTEN_HOST     default 0.0.0.0
-    HITRACK_LISTEN_PORT     default 516           (TCP listens on +1)
-    HITRACK_TEST_MODE       "1" to enable verbose logging for dev
+    HITRACK_LISTEN_PORT     default 516          (TCP listens on +1)
+    HITRACK_TEST_MODE       "1" to enable loopback spoofing for dev
+    HITRACK_TEST_DEFAULT_IP fallback source IP for test mode
 """
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import re
 import socket
-import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS, WriteOptions
 
 # ---------------------------------------------------------------------------
 # LOCATION / VENDOR
 # ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Inline syslog body parser (severity from <PRI>, category from keyword regex).
-# Previously lived in `_syslog_helpers.py`; inlined so this listener stays
-# completely self-contained (no sibling-module imports).
-# ---------------------------------------------------------------------------
-_PRI_RE = re.compile(r"<(?P<pri>\d{1,3})>")
-
-_PRI_SEVERITY = {
-    0: "critical",   # emergency
-    1: "critical",   # alert
-    2: "critical",   # critical
-    3: "error",
-    4: "warning",
-    5: "notice",
-    6: "informational",
-    7: "informational",  # debug
-}
-
-_CATEGORY_RULES = (
-    ("disk_failure",       re.compile(r"\b(disk|drive|hdd|ssd|nvme)\b.*\b(fail|fault|error|bad)\b", re.I)),
-    ("disk_failure",       re.compile(r"\bdisk\.(fail|error|fault)", re.I)),
-    ("controller_fault",   re.compile(r"\bcontroller\b.*\b(fail|fault|takeover|offline|down)\b", re.I)),
-    ("controller_fault",   re.compile(r"node.fault|computeNodeFault", re.I)),
-    ("power_failure",      re.compile(r"\bpower\b.*\b(fail|loss|down|fault)\b|\bpsu\b", re.I)),
-    ("temperature_alarm",  re.compile(r"temp(erature)?|thermal|overheat", re.I)),
-    ("fan_failure",        re.compile(r"\bfan\b|\bblower\b", re.I)),
-    ("battery_alert",      re.compile(r"\bbattery\b|\bbbu\b|nvram.*battery", re.I)),
-    ("raid_degraded",      re.compile(r"raid.*(degraded|rebuild|fail)", re.I)),
-    ("volume_alert",       re.compile(r"\bvolume\b.*\b(full|offline|error|threshold|capacity)\b|\baggr\b.*\bfull\b", re.I)),
-    ("snapshot_alert",     re.compile(r"snapshot|\bsnap\b.*(full|fail|create|delete)", re.I)),
-    ("replication_alert",  re.compile(r"\breplication\b|snapmirror|\bsrdf\b|metrocluster", re.I)),
-    ("port_fault",         re.compile(r"\b(port|link|fcp|iscsi)\b.*\b(down|fail|fault|offline|disabled)\b", re.I)),
-    ("firmware_alert",     re.compile(r"firmware|microcode", re.I)),
-    ("config_change",      re.compile(r"config(uration)?.*\b(change|modify|update|set)\b|lun.*\b(create|delete|map|unmap)\b", re.I)),
-    ("auth_failure",       re.compile(r"(auth|login|ssh|console)\s*(fail|denied|error|invalid)", re.I)),
-    ("license_alert",      re.compile(r"\blicense\b", re.I)),
-    ("env_warning",        re.compile(r"hwHealthStateChanged|health.*alert|callhome", re.I)),
-)
-
-
-def parse_event(body):
-    """Return (severity, trap_category) parsed from a syslog body."""
-    if not body:
-        return "informational", "other"
-    s = body.lstrip()
-    if s.startswith("[SOURCE_IP="):
-        cut = s.find("] ")
-        if cut > 0:
-            s = s[cut + 2:].lstrip()
-    severity = "informational"
-    m = _PRI_RE.match(s)
-    if m:
-        try:
-            severity = _PRI_SEVERITY.get(int(m.group("pri")) & 0x07, "informational")
-        except (TypeError, ValueError):
-            pass
-    category = "other"
-    for _cat, _pattern in _CATEGORY_RULES:
-        if _pattern.search(body):
-            category = _cat
-            break
-    return severity, category
-
-
-VENDOR   = "NetApp"
 LOCATION = "CDVL"
+VENDOR   = "NetApp"
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------------------------
 INFLUX_URL    = os.environ.get("HITRACK_INFLUX_URL",    "http://127.0.0.1:8286")
-INFLUX_TOKEN  = os.environ.get("HITRACK_INFLUX_TOKEN",  "")
+INFLUX_TOKEN  = os.environ.get("HITRACK_INFLUX_TOKEN",  "hitrack-dev-token-please-change")
 INFLUX_ORG    = os.environ.get("HITRACK_INFLUX_ORG",    "HDFC")
 INFLUX_BUCKET = os.environ.get("HITRACK_INFLUX_BUCKET", "NetApp_CDVL_Bucket")
 
 LISTEN_HOST = os.environ.get("HITRACK_LISTEN_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("HITRACK_LISTEN_PORT", "516"))
-TEST_MODE   = os.environ.get("HITRACK_TEST_MODE", "0") == "1"
 
 BUFFER_SIZE = 8192
+LOG_LEVEL   = logging.INFO
 
+# Multithreaded ingestion knobs
+WORKER_THREADS           = max(2, int(os.environ.get("HITRACK_WORKER_THREADS", "16")))
+WRITE_BATCH              = os.environ.get("HITRACK_WRITE_BATCH", "1").lower() in ("1", "true", "yes", "on")
+WRITE_BATCH_SIZE         = max(1, int(os.environ.get("HITRACK_WRITE_BATCH_SIZE", "200")))
+WRITE_FLUSH_MS           = max(50, int(os.environ.get("HITRACK_WRITE_FLUSH_MS", "1000")))
+WRITE_JITTER_MS          = max(0, int(os.environ.get("HITRACK_WRITE_JITTER_MS", "0")))
+WRITE_RETRY_INTERVAL_MS  = max(50, int(os.environ.get("HITRACK_WRITE_RETRY_MS", "1000")))
+
+TEST_MODE = os.environ.get("HITRACK_TEST_MODE", "").lower() in ("1", "true", "yes", "on")
+TEST_DEFAULT_IP = os.environ.get("HITRACK_TEST_DEFAULT_IP", "10.5.5.150")
+TEST_LOOPBACK_IPS = ("127.0.0.1", "::1")
+TEST_SOURCE_PREFIX_RE = re.compile(r"^\s*\[SOURCE_IP=(?P<ip>[0-9a-fA-F\.:]+)\]\s*")
+
+# ---------------------------------------------------------------------------
+# LOGGING
+# ---------------------------------------------------------------------------
 logging.basicConfig(
-    level=logging.DEBUG if TEST_MODE else logging.INFO,
-    format=f"%(asctime)s [%(levelname)s] netapp-cdvl: %(message)s",
+    level=LOG_LEVEL,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("syslog_trap_listener_netapp_cdvl.log"),
+    ],
 )
-LOG = logging.getLogger("hitrack.listener.netapp.cdvl")
+log = logging.getLogger("syslog_trap_listener_netapp_cdvl")
 
 raw_log = logging.getLogger("raw_syslog_netapp_cdvl")
 raw_log.setLevel(logging.INFO)
@@ -143,18 +96,7 @@ raw_log.addHandler(raw_fh)
 raw_log.propagate = False
 
 # ---------------------------------------------------------------------------
-# NetApp filer IP -> hostname map (placeholder; refresh from inventory)
-# ---------------------------------------------------------------------------
-NETAPP_IP_MAP = {
-    # "10.227.62.18":  "FAS_8200_4187-CDVL",
-    # "10.227.62.19":  "AFF_A800_2210-CDVL",
-}
-
-_HOSTNAME_RE = re.compile(r"<\d+>\d+\s+\S+\s+(\S+)\s")
-
-# ---------------------------------------------------------------------------
-# Heartbeat — each listener is its own service, so the heartbeat config /
-# counter / loop live INSIDE this file (no shared helper module).
+# Heartbeat
 # ---------------------------------------------------------------------------
 HB_URL      = os.environ.get("HITRACK_HEARTBEAT_URL",    "").strip()
 HB_TOKEN    = os.environ.get("HITRACK_HEARTBEAT_TOKEN",  "").strip()
@@ -164,25 +106,23 @@ HB_INTERVAL = max(5, int(os.environ.get("HITRACK_HEARTBEAT_INTERVAL", "15")))
 HB_LISTENER = f"{VENDOR.lower()}-{LOCATION.lower()}"
 
 _msg_count: int = 0
+_hw_count: int = 0
 
 
 def _heartbeat_loop() -> None:
     if not (HB_URL and HB_TOKEN and HB_BUCKET):
-        LOG.info("heartbeat disabled - HITRACK_HEARTBEAT_URL/TOKEN/BUCKET not set")
+        log.info("heartbeat disabled - HITRACK_HEARTBEAT_URL/TOKEN/BUCKET not set")
         return
     try:
-        from influxdb_client import InfluxDBClient, Point, WritePrecision
-        from influxdb_client.client.write_api import SYNCHRONOUS
-
         hb_client = InfluxDBClient(url=HB_URL, token=HB_TOKEN, org=HB_ORG)
         hb_write  = hb_client.write_api(write_options=SYNCHRONOUS)
     except Exception as exc:
-        LOG.warning("heartbeat disabled - influx client init failed: %s", exc)
+        log.warning("heartbeat disabled - influx client init failed: %s", exc)
         return
 
     started_at = time.time()
     seq = 0
-    LOG.info("heartbeat thread up -> %s/%s every %ds", HB_URL, HB_BUCKET, HB_INTERVAL)
+    log.info("heartbeat thread up -> %s/%s every %ds", HB_URL, HB_BUCKET, HB_INTERVAL)
     while True:
         try:
             seq += 1
@@ -193,6 +133,7 @@ def _heartbeat_loop() -> None:
                 .tag("oem",      VENDOR)
                 .field("alive",       True)
                 .field("msg_count",   int(_msg_count))
+                .field("hw_count",    int(_hw_count))
                 .field("queue_depth", 0)
                 .field("uptime_s",    int(time.time() - started_at))
                 .field("hb_seq",      seq)
@@ -200,7 +141,7 @@ def _heartbeat_loop() -> None:
             )
             hb_write.write(bucket=HB_BUCKET, org=HB_ORG, record=point)
         except Exception as exc:
-            LOG.warning("heartbeat write failed: %s", exc)
+            log.warning("heartbeat write failed: %s", exc)
         time.sleep(HB_INTERVAL)
 
 
@@ -209,166 +150,744 @@ def _start_heartbeat() -> None:
         target=_heartbeat_loop, daemon=True, name=f"hb-{HB_LISTENER}",
     ).start()
 
-# ---------------------------------------------------------------------------
-# Influx writer (best-effort)
-# ---------------------------------------------------------------------------
-_write_api = None
-_influx_enabled = bool(INFLUX_TOKEN)
 
-if _influx_enabled:
+# ---------------------------------------------------------------------------
+# IP MAPPINGS (CDVL only)
+# Source IP -> measurement.  Only listed IPs are accepted.
+# ---------------------------------------------------------------------------
+IP_FILTER: Dict[str, str] = {
+    # AFF A800 - 18L-STR-H-20210 (S/N 952152000479-952152000493)
+    "10.5.5.150":       "netapp_storage",
+    # AFF A700 - 18L-STR-H-20212 (S/N 721852000125-721852000126)
+    "10.5.5.155":       "netapp_storage",
+    # AFF A800 - 18L-STR-H-20209 (S/N 941849000311-941849000318)
+    "10.226.83.150":    "netapp_storage",
+    # AFF A800 - 18L-STR-H-20205 (S/N 952302000546-941815000207)
+    "10.5.5.140":       "netapp_storage",
+    # AFF A800 - 20B-STR-H-20454 (S/N 952001000029-952007000013)
+    "10.5.6.183":       "netapp_storage",
+    # AFF A700 - 20G-STR-H-20309 (S/N 722031000130-792110000063)
+    "10.5.7.242":       "netapp_storage",
+    # AFF A800 - 21C-STR-H-20341 (S/N 952113004041-952114000374)
+    "10.5.6.194":       "netapp_storage",
+    # AFF A800 - 21G-STR-H-20361 UAT (S/N 952121002002-952025000486)
+    "10.229.196.166":   "netapp_storage",
+    # AFF A800 - 22A-STR-H-20384 (S/N 952202000780-952124000437)
+    "10.227.61.246":    "netapp_storage",
+    # AFF A800 - 22A-STR-H-20387 UAT (S/N 952202000789-952202000778)
+    "10.226.196.188":   "netapp_storage",
+    # AFF A800 - 22A-STR-H-20389 (S/N 952202000787-952202000775)
+    "10.227.62.227":    "netapp_storage",
+    # AFF A800 - 22C-STR-H-20402 (S/N 952216002138-952216002047)
+    "10.227.62.243":    "netapp_storage",
+    # AFF A700 - 22C-STR-H-20411 (S/N 792221000131-792221000150)
+    "10.227.62.237":    "netapp_storage",
+    # AFF A800 - 22G-STR-H-20409 (S/N 952216002219-952216002231)
+    "10.226.83.143":    "netapp_storage",
+    # AFF A900 - 23C-STR-H-20452 (S/N 792310000123-...)
+    "10.227.63.164":    "netapp_storage",
+    # AFF A900 - 23E-STR-H-20457 (S/N 792310000164-...)
+    "10.227.60.11":     "netapp_storage",
+    # AFF A900 - 23E-STR-H-20458 (S/N 792310000180-...)
+    "10.227.63.240":    "netapp_storage",
+    # AFF A900 - 23L-STR-H-20485 (S/N 792349000825-792349000819)
+    "10.227.64.234":    "netapp_storage",
+    # AFF A900 - 23L-STR-H-20483 UAT (S/N 792349000816-792350000681)
+    "10.229.232.155":   "netapp_storage",
+    # AFF A900 - 23L-STR-H-20489 (S/N 792350000634-792349000810)
+    "10.226.157.151":   "netapp_storage",
+    "10.226.157.156":   "netapp_storage",
+    # AFF A900 - 23L-STR-H-20492 UAT (S/N 792349000806-792349000796)
+    "10.229.232.187":   "netapp_storage",
+    "10.229.232.188":   "netapp_storage",
+    "10.229.232.192":   "netapp_storage",
+    # AFF A900 - 23L-STR-H-20480 (S/N 792349000099-792349000112)
+    "10.65.12.237":     "netapp_storage",
+    "10.65.12.242":     "netapp_storage",
+    # AFF A900 - 24B-STR-H-20503 UAT (S/N 722439000208-722439000209)
+    "10.229.232.179":   "netapp_storage",
+    "10.229.232.184":   "netapp_storage",
+    # AFF A900 - 24B-STR-H-20504 UAT (S/N 722442000218-722439000267)
+    "10.229.232.171":   "netapp_storage",
+    "10.229.232.176":   "netapp_storage",
+    # AFF A900 - 24B-STR-H-20502 (S/N 722444000039-722444000047)
+    "10.227.65.53":     "netapp_storage",
+    "10.227.65.58":     "netapp_storage",
+    # AFF A900 - 24D-STR-H-20509 (S/N 792412000675-...)
+    "10.227.65.74":     "netapp_storage",
+    "10.227.65.77":     "netapp_storage",
+    "10.227.65.91":     "netapp_storage",
+    # AFF A900 - 24D-STR-H-20515 (S/N 722422000508-722433000606)
+    "10.227.67.32":     "netapp_storage",
+    "10.227.67.33":     "netapp_storage",
+    # AFF A900 - 24D-STR-H-20508 (S/N 722442000221-722442000247)
+    "10.65.15.134":     "netapp_storage",
+    "10.65.15.139":     "netapp_storage",
+    # NetApp SGF6112 - 25L-STR-H-20555 (S/N 372551000044-372551000049)
+    "10.227.67.72":     "netapp_storage",
+    "10.227.67.91":     "netapp_storage",
+    # AFF A90 - 26C-STR-H-20565 (S/N 952603000742-952603000756)
+    "10.226.117.62":    "netapp_storage",
+    "10.226.117.67":    "netapp_storage",
+    # AFF A90 - 26C-STR-H-20566 (S/N 952603000891-952603000992)
+    "10.226.117.68":    "netapp_storage",
+    "10.226.117.73":    "netapp_storage",
+}
+
+# ---------------------------------------------------------------------------
+# IP -> friendly storage name (CDVL only)
+# ---------------------------------------------------------------------------
+IP_TO_STORAGE_NAME: Dict[str, str] = {
+    "10.5.5.150":       "AFF_A800_20210-CDVL",
+    "10.5.5.155":       "AFF_A700_20212-CDVL",
+    "10.226.83.150":    "AFF_A800_20209-CDVL",
+    "10.5.5.140":       "AFF_A800_20205-CDVL",
+    "10.5.6.183":       "AFF_A800_20454-CDVL",
+    "10.5.7.242":       "AFF_A700_20309-CDVL",
+    "10.5.6.194":       "AFF_A800_20341-CDVL",
+    "10.229.196.166":   "AFF_A800_20361-CDVL",
+    "10.227.61.246":    "AFF_A800_20384-CDVL",
+    "10.226.196.188":   "AFF_A800_20387-CDVL",
+    "10.227.62.227":    "AFF_A800_20389-CDVL",
+    "10.227.62.243":    "AFF_A800_20402-CDVL",
+    "10.227.62.237":    "AFF_A700_20411-CDVL",
+    "10.226.83.143":    "AFF_A800_20409-CDVL",
+    "10.227.63.164":    "AFF_A900_20452-CDVL",
+    "10.227.60.11":     "AFF_A900_20457-CDVL",
+    "10.227.63.240":    "AFF_A900_20458-CDVL",
+    "10.227.64.234":    "AFF_A900_20485-CDVL",
+    "10.229.232.155":   "AFF_A900_20483-CDVL",
+    "10.226.157.151":   "AFF_A900_20489-CDVL",
+    "10.226.157.156":   "AFF_A900_20489-CDVL",
+    "10.229.232.187":   "AFF_A900_20492-CDVL",
+    "10.229.232.188":   "AFF_A900_20492-CDVL",
+    "10.229.232.192":   "AFF_A900_20492-CDVL",
+    "10.65.12.237":     "AFF_A900_20480-CDVL",
+    "10.65.12.242":     "AFF_A900_20480-CDVL",
+    "10.229.232.179":   "AFF_A900_20503-CDVL",
+    "10.229.232.184":   "AFF_A900_20503-CDVL",
+    "10.229.232.171":   "AFF_A900_20504-CDVL",
+    "10.229.232.176":   "AFF_A900_20504-CDVL",
+    "10.227.65.53":     "AFF_A900_20502-CDVL",
+    "10.227.65.58":     "AFF_A900_20502-CDVL",
+    "10.227.65.74":     "AFF_A900_20509-CDVL",
+    "10.227.65.77":     "AFF_A900_20509-CDVL",
+    "10.227.65.91":     "AFF_A900_20509-CDVL",
+    "10.227.67.32":     "AFF_A900_20515-CDVL",
+    "10.227.67.33":     "AFF_A900_20515-CDVL",
+    "10.65.15.134":     "AFF_A900_20508-CDVL",
+    "10.65.15.139":     "AFF_A900_20508-CDVL",
+    "10.227.67.72":     "SGF6112_20555-CDVL",
+    "10.227.67.91":     "SGF6112_20555-CDVL",
+    "10.226.117.62":    "AFF_A90_20565-CDVL",
+    "10.226.117.67":    "AFF_A90_20565-CDVL",
+    "10.226.117.68":    "AFF_A90_20566-CDVL",
+    "10.226.117.73":    "AFF_A90_20566-CDVL",
+}
+
+# ---------------------------------------------------------------------------
+# IP FILTER HELPERS
+# ---------------------------------------------------------------------------
+
+def _build_filter_table(ip_filter: Dict[str, str]) -> List[Tuple[object, str]]:
+    table = []
+    for entry, measurement in ip_filter.items():
+        try:
+            net = ipaddress.ip_network(entry, strict=False)
+            table.append((net, measurement))
+        except ValueError:
+            log.warning("Invalid IP filter entry skipped: %s", entry)
+    return table
+
+
+FILTER_TABLE = _build_filter_table(IP_FILTER)
+
+
+def classify_source(ip_str: str) -> Optional[str]:
     try:
-        from influxdb_client import InfluxDBClient, Point, WritePrecision
-        from influxdb_client.client.write_api import SYNCHRONOUS
-
-        _client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-        _write_api = _client.write_api(write_options=SYNCHRONOUS)
-        LOG.info("InfluxDB writer enabled -> %s (bucket=%s)", INFLUX_URL, INFLUX_BUCKET)
-    except Exception as exc:  # pragma: no cover
-        LOG.warning("InfluxDB connect failed (%s) - falling back to log-only", exc)
-        _influx_enabled = False
-        _write_api = None
-else:
-    LOG.warning("HITRACK_INFLUX_TOKEN not set - running in log-only mode")
+        addr = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return None
+    for network, measurement in FILTER_TABLE:
+        if addr in network:
+            return measurement
+    return None
 
 
-_msg_count = 0
+def resolve_storage_name(ip_str: str) -> str:
+    return IP_TO_STORAGE_NAME.get(ip_str, "unknown")
 
 
-def _record(source_ip: str, raw: bytes) -> None:
+def apply_test_mode(raw: bytes, source_ip: str) -> Tuple[bytes, str, bool]:
+    if not TEST_MODE:
+        return raw, source_ip, False
+    is_loopback = source_ip in TEST_LOOPBACK_IPS or source_ip.startswith("127.")
+    try:
+        text = raw.decode("utf-8", errors="replace")
+    except Exception:
+        text = ""
+
+    spoof_ip = None
+    m = TEST_SOURCE_PREFIX_RE.search(text)
+    if m:
+        spoof_ip = m.group("ip")
+        text = TEST_SOURCE_PREFIX_RE.sub("", text, count=1)
+        raw = text.encode("utf-8", errors="replace")
+
+    if is_loopback:
+        chosen_ip = spoof_ip or TEST_DEFAULT_IP
+        if chosen_ip not in IP_FILTER:
+            log.warning(
+                "TEST_MODE: spoof IP %s is not in IP_FILTER; falling back to %s",
+                chosen_ip, TEST_DEFAULT_IP,
+            )
+            chosen_ip = TEST_DEFAULT_IP
+        return raw, chosen_ip, True
+    return raw, source_ip, False
+
+
+# ---------------------------------------------------------------------------
+# NETAPP ONTAP EMS EVENT NAME -> HARDWARE CATEGORY MAPPING
+#
+# Only events whose EMS name starts with one of these prefixes are
+# considered hardware alerts.  Everything else is silently dropped.
+# ---------------------------------------------------------------------------
+EMS_HARDWARE_PREFIXES: List[Tuple[str, str]] = [
+    # --- Disk / RAID ---
+    ("callhome.disk",          "disk_failure"),
+    ("callhome.raidDgrd",      "raid_degraded"),
+    ("callhome.spares",        "disk_failure"),
+    ("disk.fail",              "disk_failure"),
+    ("disk.outOfService",      "disk_failure"),
+    ("disk.write.failure",     "disk_failure"),
+    ("disk.ioRecovery",        "disk_failure"),
+    ("raid.rg.",               "raid_degraded"),
+    ("raid.fdr.",              "raid_degraded"),
+
+    # --- Shelf hardware ---
+    ("monitor.shelf.",         "shelf_fault"),
+    ("callhome.shlf.",         "shelf_fault"),
+    ("ses.status.",            "shelf_fault"),
+    ("acp.shelf.",             "shelf_fault"),
+    ("sas.adapter.",           "shelf_fault"),
+
+    # --- Fan / Cooling ---
+    ("monitor.fan.",           "fan_failure"),
+    ("monitor.chassis.fan",    "fan_failure"),
+    ("callhome.c.fan.",        "fan_failure"),
+    ("callhome.chassis.fan",   "fan_failure"),
+
+    # --- Power Supply ---
+    ("callhome.shlf.power",    "power_failure"),
+    ("callhome.chassis.power", "power_failure"),
+    ("callhome.power.",        "power_failure"),
+
+    # --- Temperature ---
+    ("callhome.shlf.overtemp", "temperature_alarm"),
+    ("monitor.chassisTemperature", "temperature_alarm"),
+    ("monitor.shelf.temp",     "temperature_alarm"),
+
+    # --- Controller / HA ---
+    ("callhome.panic",         "controller_fault"),
+    ("callhome.takeover",      "controller_fault"),
+    ("callhome.giveback",      "controller_fault"),
+    ("cf.takeover.",           "controller_fault"),
+    ("cf.fsm.",                "controller_fault"),
+
+    # --- NVRAM ---
+    ("callhome.nvram",         "nvram_alert"),
+    ("nvram.",                 "nvram_alert"),
+    ("nvmem.",                 "nvram_alert"),
+
+    # --- Battery ---
+    ("callhome.battery",       "battery_alert"),
+    ("monitor.nvramLowBattery", "battery_alert"),
+    ("monitor.shutdown.nvramLowBattery", "battery_alert"),
+
+    # --- HA Interconnect ---
+    ("callhome.hainterconnect", "interconnect_fault"),
+    ("cf.ic.",                  "interconnect_fault"),
+    ("monitor.ha.",             "interconnect_fault"),
+    ("ic.linkState",            "interconnect_fault"),
+
+    # --- Network / Port ---
+    ("callhome.net.",          "port_fault"),
+    ("callhome.fcp.",          "port_fault"),
+
+    # --- Firmware / SP / BMC ---
+    ("callhome.firmware",      "firmware_alert"),
+    ("sp.",                    "firmware_alert"),
+    ("bmc.",                   "firmware_alert"),
+
+    # --- General environment / health ---
+    ("callhome.env",           "env_warning"),
+    ("monitor.globalStatus.",  "env_warning"),
+    ("hm.alert.",              "env_warning"),
+    ("health.monitor.",        "env_warning"),
+    ("callhome.clam.",         "env_warning"),
+]
+
+# All known hardware categories (for boolean trap flags)
+ALL_HW_CATEGORIES = sorted(set(cat for _, cat in EMS_HARDWARE_PREFIXES))
+
+
+def classify_ems_event(event_name: str) -> Optional[str]:
+    """Return the hardware category for an EMS event, or None if not hardware."""
+    lower = event_name.lower()
+    for prefix, category in EMS_HARDWARE_PREFIXES:
+        if lower.startswith(prefix.lower()):
+            return category
+    return None
+
+
+# ---------------------------------------------------------------------------
+# SYSLOG PARSING  — handles both legacy-netapp (RFC3164) and RFC5424
+# ---------------------------------------------------------------------------
+FACILITY_NAMES = [
+    "kern", "user", "mail", "daemon", "auth", "syslog", "lpr", "news",
+    "uucp", "cron", "authpriv", "ftp", "ntp", "log_audit", "log_alert",
+    "clock", "local0", "local1", "local2", "local3", "local4", "local5",
+    "local6", "local7",
+]
+SEVERITY_NAMES = [
+    "emergency", "alert", "critical", "error",
+    "warning", "notice", "informational", "debug",
+]
+
+# ONTAP legacy-netapp format:
+#   <PRI>TIMESTAMP NodeName: process: ems.event.name:severity: Message
+# or bracketed variant:
+#   [NodeName: process: ems.event.name:severity]: Message
+ONTAP_LEGACY_RE = re.compile(
+    r"(?:<\d+>)?"                           # optional PRI
+    r"(?:\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+)?"  # optional BSD timestamp
+    r"(?:\S+\s+)?"                          # optional extra hostname before bracket
+    r"\[?"                                  # optional opening bracket
+    r"(?P<node>[\w][\w.\-]*)"              # node name
+    r":\s*"
+    r"(?P<process>[\w.\-_]+)"              # process name
+    r":\s*"
+    r"(?P<ems_event>[\w][\w.]*[\w])"       # EMS event name (dotted)
+    r":\s*"
+    r"(?:\[?\s*(?P<ems_severity>"
+    r"EMERGENCY|ALERT|CRITICAL|ERROR|WARNING|NOTICE|INFORMATIONAL|DEBUG|"
+    r"kern_emerg|kern_alert|kern_crit|kern_err|kern_warning|kern_notice|kern_info|kern_debug|"
+    r"emergency|alert|critical|error|warning|notice|informational|debug"
+    r")\s*\]?\s*:?\s*)?"                    # optional severity label
+    r"\]?\s*:?\s*"                          # optional close bracket + colon
+    r"(?P<message>.+)",                     # message body
+    re.I,
+)
+
+# RFC5424 format (if configured on the filer)
+RFC5424_RE = re.compile(
+    r"^<(?P<pri>\d{1,3})>"
+    r"(?P<version>\d+)\s+"
+    r"(?P<timestamp>\S+)\s+"
+    r"(?P<hostname>\S+)\s+"
+    r"(?P<appname>\S+)\s+"
+    r"(?P<procid>\S+)\s+"
+    r"(?P<msgid>\S+)\s+"
+    r"(?P<structured_data>\[.*?\]|-)\s*"
+    r"(?P<message>.*)$"
+)
+
+# Fallback PRI extractor
+PRI_RE = re.compile(r"^<(?P<pri>\d{1,3})>")
+
+# Map ONTAP severity labels to our unified scale
+ONTAP_SEVERITY_MAP: Dict[str, str] = {
+    "emergency":      "critical",
+    "kern_emerg":     "critical",
+    "alert":          "critical",
+    "kern_alert":     "critical",
+    "critical":       "critical",
+    "kern_crit":      "critical",
+    "error":          "error",
+    "kern_err":       "error",
+    "warning":        "warning",
+    "kern_warning":   "warning",
+    "notice":         "notice",
+    "kern_notice":    "notice",
+    "informational":  "informational",
+    "kern_info":      "informational",
+    "debug":          "informational",
+    "kern_debug":     "informational",
+}
+
+
+def decode_priority(pri: int) -> Dict[str, object]:
+    facility = pri >> 3
+    severity = pri & 0x07
+    return {
+        "facility":      FACILITY_NAMES[facility] if facility < len(FACILITY_NAMES) else str(facility),
+        "severity":      SEVERITY_NAMES[severity] if severity < len(SEVERITY_NAMES) else str(severity),
+        "facility_code": facility,
+        "severity_code": severity,
+    }
+
+
+def parse_syslog(raw: bytes, source_ip: str) -> Optional[Dict[str, object]]:
+    """Parse an ONTAP EMS syslog message and return fields dict.
+
+    Returns None if the message is not a hardware alert (filtered out).
+    """
     global _msg_count
     _msg_count += 1
+
     try:
-        raw_str = raw.decode("utf-8", errors="replace").strip()
-        if raw_str:
-            raw_log.info(f"[{source_ip}] {raw_str}")
+        text = raw.decode("utf-8", errors="replace").strip()
+        if text:
+            raw_log.info("[%s] %s", source_ip, text)
     except Exception:
-        pass
+        return None
 
-    body = raw.decode("utf-8", errors="replace").strip()
-    preview = body.replace("\n", " ")[:240]
-    hostname = ""
-    m = _HOSTNAME_RE.search(body)
+    if not text:
+        return None
+
+    fields: Dict[str, object] = {"raw_message": text}
+
+    # --- Extract PRI if present ---
+    pri_match = PRI_RE.match(text)
+    if pri_match:
+        pri = int(pri_match.group("pri"))
+        fields.update(decode_priority(pri))
+        fields["priority"] = pri
+    else:
+        fields["severity"] = "informational"
+        fields["facility"] = "local0"
+        fields["facility_code"] = 16
+        fields["severity_code"] = 6
+
+    # --- Try ONTAP legacy-netapp format first ---
+    ems_event_name = ""
+    ems_severity_raw = ""
+    ems_process = ""
+    node_name = ""
+    message = text
+
+    m = ONTAP_LEGACY_RE.search(text)
     if m:
-        hostname = m.group(1)
+        node_name = m.group("node") or ""
+        ems_process = m.group("process") or ""
+        ems_event_name = m.group("ems_event") or ""
+        ems_severity_raw = (m.group("ems_severity") or "").strip().lower()
+        message = m.group("message") or ""
+        fields["syslog_format"] = "ONTAP_LEGACY"
+    else:
+        # Try RFC5424
+        m5 = RFC5424_RE.match(text)
+        if m5:
+            gd = m5.groupdict()
+            node_name = gd.get("hostname", "")
+            ems_process = gd.get("appname", "")
+            message = gd.get("message", "")
+            fields["syslog_format"] = "RFC5424"
+            # Try to extract EMS event name from the message body
+            inner = ONTAP_LEGACY_RE.search(message)
+            if inner:
+                ems_event_name = inner.group("ems_event") or ""
+                ems_severity_raw = (inner.group("ems_severity") or "").strip().lower()
+                message = inner.group("message") or message
+        else:
+            fields["syslog_format"] = "UNKNOWN"
 
-    array_name = NETAPP_IP_MAP.get(source_ip, hostname or "unknown")
-    severity, trap_category = parse_event(body)
+    # --- Classify hardware category from EMS event name ---
+    trap_category = None
+    if ems_event_name:
+        trap_category = classify_ems_event(ems_event_name)
 
-    LOG.info("%d bytes from %s (%s) :: %s", len(raw), source_ip, array_name, preview)
+    # If no EMS event name was extracted, or the event is not hardware, drop it
+    if trap_category is None:
+        log.debug(
+            "Dropped non-hardware event from %s: ems=%s msg=%.80s",
+            source_ip, ems_event_name or "(none)", message,
+        )
+        return None
 
-    if not _influx_enabled or _write_api is None:
-        return
+    # This IS a hardware alert — increment counter
+    global _hw_count
+    _hw_count += 1
 
-    try:
+    # --- Map severity ---
+    if ems_severity_raw and ems_severity_raw in ONTAP_SEVERITY_MAP:
+        fields["severity"] = ONTAP_SEVERITY_MAP[ems_severity_raw]
+
+    # --- Build fields ---
+    storage_name = resolve_storage_name(source_ip)
+    fields["hostname"] = node_name or storage_name
+    fields["message"] = message
+    fields["vendor"] = "netapp"
+    fields["trap_category"] = trap_category
+    fields["array_name"] = storage_name
+    fields["ems_event_name"] = ems_event_name
+    fields["ems_severity"] = ems_severity_raw
+    fields["ems_process"] = ems_process
+    fields["error_message"] = message
+
+    # Boolean trap flags for each hardware category
+    for cat in ALL_HW_CATEGORIES:
+        fields[f"trap_{cat}"] = (cat == trap_category)
+
+    return fields
+
+
+# ---------------------------------------------------------------------------
+# INFLUXDB WRITER
+# ---------------------------------------------------------------------------
+
+class InfluxWriter:
+    def __init__(self) -> None:
+        self.client = InfluxDBClient(
+            url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG, verify_ssl=False
+        )
+        if WRITE_BATCH:
+            opts = WriteOptions(
+                batch_size=WRITE_BATCH_SIZE,
+                flush_interval=WRITE_FLUSH_MS,
+                jitter_interval=WRITE_JITTER_MS,
+                retry_interval=WRITE_RETRY_INTERVAL_MS,
+            )
+            self.write_api = self.client.write_api(write_options=opts)
+            log.info(
+                "InfluxDB client initialised -> %s (bucket=%s) "
+                "[batch=%d flush_ms=%d]",
+                INFLUX_URL, INFLUX_BUCKET, WRITE_BATCH_SIZE, WRITE_FLUSH_MS,
+            )
+        else:
+            self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+            log.info(
+                "InfluxDB client initialised -> %s (bucket=%s) [SYNCHRONOUS]",
+                INFLUX_URL, INFLUX_BUCKET,
+            )
+
+    def write(self, measurement: str, source_ip: str, fields: Dict[str, object]) -> None:
         point = (
-            Point("netapp_event")
-            .tag("vendor", VENDOR)
-            .tag("location", LOCATION)
-            .tag("source_ip", source_ip)
-            .tag("array_name", array_name)
-            .tag("hostname", hostname or "unknown")
-            .tag("severity", severity)
-            .tag("trap_category", trap_category)
-            .field("bytes", len(raw)).field("preview", preview).field("raw_message", body)
-            .field("error_message", body)
+            Point(measurement)
+            .tag("source_ip",     source_ip)
+            .tag("environment",   LOCATION)
+            .tag("syslog_format", str(fields.get("syslog_format", "UNKNOWN")))
+            .tag("severity",      str(fields.get("severity", "unknown")))
+            .tag("facility",      str(fields.get("facility", "unknown")))
+            .tag("vendor",        str(fields.get("vendor", "unknown")))
+            .tag("trap_category", str(fields.get("trap_category", "none")))
+            .tag("array_name",    str(fields.get("array_name", "unknown")))
             .time(datetime.now(timezone.utc), WritePrecision.NS)
         )
-        _write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-    except Exception as exc:  # pragma: no cover
-        LOG.warning("Influx write failed: %s", exc)
 
+        str_fields = [
+            "hostname", "message", "raw_message", "error_message",
+            "ems_event_name", "ems_severity", "ems_process",
+        ]
+        for key in str_fields:
+            val = fields.get(key)
+            if val is not None and val != "":
+                point = point.field(key, str(val))
 
-# ---------------------------------------------------------------------------
-# UDP / TCP listeners
-# ---------------------------------------------------------------------------
-def _udp_loop(sock: socket.socket) -> None:
-    while True:
+        for key in ("priority", "facility_code", "severity_code"):
+            val = fields.get(key)
+            if val is not None:
+                try:
+                    point = point.field(key, int(val))
+                except (TypeError, ValueError):
+                    pass
+
+        for key, val in fields.items():
+            if key.startswith("trap_") and isinstance(val, bool):
+                point = point.field(key, val)
+
         try:
-            data, addr = sock.recvfrom(BUFFER_SIZE)
-            _record(addr[0], data)
-        except OSError:
-            break
+            self.write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+            log.debug(
+                "Written -> %s [%s] sev=%s cat=%s ems=%s array=%s",
+                measurement, source_ip,
+                fields.get("severity"), fields.get("trap_category"),
+                fields.get("ems_event_name"), fields.get("array_name"),
+            )
+        except Exception as exc:
+            log.error("InfluxDB write to %s failed: %s", INFLUX_BUCKET, exc)
+
+    def close(self) -> None:
+        self.client.close()
 
 
-def _tcp_client(conn: socket.socket, addr) -> None:
-    try:
-        buf = b""
-        conn.settimeout(30)
+# ---------------------------------------------------------------------------
+# UDP LISTENER
+# ---------------------------------------------------------------------------
+
+class UDPSyslogListener(threading.Thread):
+    def __init__(self, writer: InfluxWriter, pool: ThreadPoolExecutor) -> None:
+        super().__init__(daemon=True, name="UDPSyslogListener")
+        self.writer = writer
+        self.pool = pool
+
+    def run(self) -> None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((LISTEN_HOST, LISTEN_PORT))
+        log.info(
+            "UDP syslog listener started on %s:%d (workers=%d)",
+            LISTEN_HOST, LISTEN_PORT, WORKER_THREADS,
+        )
         while True:
-            chunk = conn.recv(BUFFER_SIZE)
-            if not chunk:
-                break
-            buf += chunk
-            while b"\n" in buf:
-                line, buf = buf.split(b"\n", 1)
-                if line.strip():
-                    _record(addr[0], line)
-        if buf.strip():
-            _record(addr[0], buf)
-    finally:
+            try:
+                data, addr = sock.recvfrom(BUFFER_SIZE)
+                self.pool.submit(self._safe_handle, data, addr[0])
+            except Exception as exc:
+                log.error("UDP receive error: %s", exc)
+
+    def _safe_handle(self, data: bytes, source_ip: str) -> None:
         try:
+            self._handle(data, source_ip)
+        except Exception as exc:
+            log.exception("UDP worker crashed processing packet from %s: %s",
+                          source_ip, exc)
+
+    def _handle(self, data: bytes, source_ip: str) -> None:
+        data, source_ip, spoofed = apply_test_mode(data, source_ip)
+        measurement = classify_source(source_ip)
+        if measurement is None:
+            log.debug("Dropped packet from non-allowed IP: %s", source_ip)
+            return
+
+        if spoofed:
+            log.info("TEST_MODE: attributing loopback packet to %s", source_ip)
+
+        fields = parse_syslog(data, source_ip)
+        if fields is None:
+            return  # non-hardware event, silently dropped
+
+        log.info(
+            "[UDP] %s (%s) -> [%s] sev=%s cat=%s ems=%s | %s",
+            source_ip, fields.get("array_name", "unknown"),
+            measurement,
+            fields.get("severity", "?"),
+            fields.get("trap_category", "?"),
+            fields.get("ems_event_name", "?"),
+            (str(fields.get("message", "")) or "")[:120],
+        )
+        self.writer.write(measurement, source_ip, fields)
+
+
+# ---------------------------------------------------------------------------
+# TCP LISTENER
+# ---------------------------------------------------------------------------
+
+class TCPSyslogListener(threading.Thread):
+    def __init__(self, writer: InfluxWriter) -> None:
+        super().__init__(daemon=True, name="TCPSyslogListener")
+        self.writer = writer
+
+    def run(self) -> None:
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind((LISTEN_HOST, LISTEN_PORT + 1))
+        srv.listen(50)
+        log.info("TCP syslog listener started on %s:%d", LISTEN_HOST, LISTEN_PORT + 1)
+        while True:
+            try:
+                conn, addr = srv.accept()
+                t = threading.Thread(
+                    target=self._handle_client,
+                    args=(conn, addr[0]),
+                    daemon=True,
+                )
+                t.start()
+            except Exception as exc:
+                log.error("TCP accept error: %s", exc)
+
+    def _handle_client(self, conn: socket.socket, source_ip: str) -> None:
+        loopback = source_ip in TEST_LOOPBACK_IPS or source_ip.startswith("127.")
+        if not (TEST_MODE and loopback):
+            measurement = classify_source(source_ip)
+            if measurement is None:
+                log.debug("TCP connection rejected from non-allowed IP: %s", source_ip)
+                conn.close()
+                return
+        else:
+            measurement = None
+
+        buf = b""
+        try:
+            while True:
+                chunk = conn.recv(BUFFER_SIZE)
+                if not chunk:
+                    break
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    if not line:
+                        continue
+                    line, effective_ip, spoofed = apply_test_mode(line, source_ip)
+                    line_measurement = measurement or classify_source(effective_ip)
+                    if line_measurement is None:
+                        continue
+                    fields = parse_syslog(line, effective_ip)
+                    if not fields:
+                        continue
+                    log.info(
+                        "[TCP] %s (%s)%s -> [%s] sev=%s cat=%s ems=%s | %s",
+                        effective_ip, fields.get("array_name", "unknown"),
+                        " (spoofed)" if spoofed else "",
+                        line_measurement,
+                        fields.get("severity", "?"),
+                        fields.get("trap_category", "?"),
+                        fields.get("ems_event_name", "?"),
+                        (str(fields.get("message", "")) or "")[:120],
+                    )
+                    self.writer.write(line_measurement, effective_ip, fields)
+        except Exception as exc:
+            log.error("TCP client error (%s): %s", source_ip, exc)
+        finally:
             conn.close()
-        except Exception:
-            pass
-
-
-def _tcp_loop(sock: socket.socket) -> None:
-    while True:
-        try:
-            conn, addr = sock.accept()
-            threading.Thread(target=_tcp_client, args=(conn, addr), daemon=True).start()
-        except OSError:
-            break
 
 
 # ---------------------------------------------------------------------------
-# Bootstrap
+# ENTRY POINT
 # ---------------------------------------------------------------------------
+
 def main() -> None:
-    LOG.info("=" * 60)
-    LOG.info(" NetApp Syslog Listener (CDVL) - starting up")
-    LOG.info(" Influx URL    : %s", INFLUX_URL)
-    LOG.info(" Influx bucket : %s", INFLUX_BUCKET)
-    LOG.info(" Bind          : %s:%d", LISTEN_HOST, LISTEN_PORT)
-    LOG.info(" IP_FILTER     : %d entries", len(NETAPP_IP_MAP))
-    LOG.info("=" * 60)
+    missing = sorted(set(IP_FILTER) - set(IP_TO_STORAGE_NAME))
+    if missing:
+        log.warning(
+            "%d IPs are in IP_FILTER but missing from IP_TO_STORAGE_NAME: %s",
+            len(missing), ", ".join(missing),
+        )
 
+    log.info("=" * 60)
+    log.info(" NetApp ONTAP EMS Listener (%s) - starting up", LOCATION)
+    log.info(" Influx URL      : %s", INFLUX_URL)
+    log.info(" Influx bucket   : %s", INFLUX_BUCKET)
+    log.info(" Measurement     : netapp_storage")
+    log.info(" IP_FILTER       : %d entries", len(IP_FILTER))
+    log.info(" Storage mapping : %d entries", len(IP_TO_STORAGE_NAME))
+    log.info(" HW categories   : %d (%s)", len(ALL_HW_CATEGORIES), ", ".join(ALL_HW_CATEGORIES))
+    log.info(" EMS prefixes    : %d rules", len(EMS_HARDWARE_PREFIXES))
+    log.info("=" * 60)
     _start_heartbeat()
 
-    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    udp.bind((LISTEN_HOST, LISTEN_PORT))
+    writer = InfluxWriter()
 
-    tcp_sock: Optional[socket.socket] = None
-    try:
-        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        tcp_sock.bind((LISTEN_HOST, LISTEN_PORT + 1))
-        tcp_sock.listen(50)
-        LOG.info("UDP %d / TCP %d ready", LISTEN_PORT, LISTEN_PORT + 1)
-    except OSError as exc:
-        LOG.warning("TCP bind on %d failed: %s", LISTEN_PORT + 1, exc)
-        tcp_sock = None
+    pool = ThreadPoolExecutor(
+        max_workers=WORKER_THREADS,
+        thread_name_prefix="netapp-worker",
+    )
 
-    udp_thread = threading.Thread(target=_udp_loop, args=(udp,), daemon=True)
-    udp_thread.start()
-    if tcp_sock is not None:
-        threading.Thread(target=_tcp_loop, args=(tcp_sock,), daemon=True).start()
+    udp = UDPSyslogListener(writer, pool)
+    tcp = TCPSyslogListener(writer)
+
+    udp.start()
+    tcp.start()
 
     try:
-        udp_thread.join()
+        udp.join()
+        tcp.join()
     except KeyboardInterrupt:
-        LOG.info("Shutdown requested")
+        log.info("Shutting down - KeyboardInterrupt received.")
     finally:
-        try:
-            udp.close()
-        except Exception:
-            pass
-        if tcp_sock is not None:
-            try:
-                tcp_sock.close()
-            except Exception:
-                pass
+        pool.shutdown(wait=False)
+        writer.close()
+        log.info("InfluxDB client closed. Bye.")
 
 
 if __name__ == "__main__":
