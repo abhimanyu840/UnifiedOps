@@ -52,7 +52,20 @@ export function DellBadge({ size = 40, ...rest }: Props) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" {...rest}>
       <rect width="100" height="100" rx="10" fill="#FFFFFF" />
-      <image href="/dell-logo.png" x="5" y="5" width="90" height="90" />
+      <circle
+        cx="50"
+        cy="50"
+        r="36"
+        fill="none"
+        stroke="#0085C3"
+        strokeWidth="6"
+      />
+      <g fill="#0085C3" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontWeight="900" fontSize="23" letterSpacing="-1">
+        <text x="21" y="58">D</text>
+        <text x="43" y="56" transform="rotate(-15, 43, 56)">E</text>
+        <text x="59" y="58">L</text>
+        <text x="73" y="58">L</text>
+      </g>
     </svg>
   );
 }
