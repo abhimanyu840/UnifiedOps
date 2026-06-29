@@ -91,21 +91,19 @@ logging.basicConfig(
     level=logging.DEBUG if TEST_MODE else logging.INFO,
     format=f"%(asctime)s [%(levelname)s] dell-cdvl: %(message)s",
 )
-LOG = logging.getLogger("hitrack.listener.dell.cdvl")
+LOG = logging.getLogger(f"hitrack.listener.dell.cdvl")
 
-raw_log = logging.getLogger("raw_snmp_dell_cdvl")
+raw_log = logging.getLogger(f"raw_snmp_dell_cdvl")
 raw_log.setLevel(logging.INFO)
-raw_fh = logging.FileHandler("syslog_trap_listener_dell_cdvl_raw_snmp_data.log")
+raw_fh = logging.FileHandler(f"syslog_trap_listener_dell_cdvl_raw_snmp_data.log")
 raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 raw_log.addHandler(raw_fh)
 raw_log.propagate = False
 
-DELL_IP_MAP = {
-    # "10.227.64.85": "PowerMax_8500-CDVL",
-}
+DELL_IP_MAP = {}
 
 # ---------------------------------------------------------------------------
-# Heartbeat â€” inline per-listener
+# Heartbeat — inline per-listener
 # ---------------------------------------------------------------------------
 HB_URL      = os.environ.get("HITRACK_HEARTBEAT_URL",    "").strip()
 HB_TOKEN    = os.environ.get("HITRACK_HEARTBEAT_TOKEN",  "").strip()
@@ -242,7 +240,7 @@ async def _snmp_loop():
 
 def main():
     LOG.info("=" * 60)
-    LOG.info(" Dell SNMP Listener (CDVL) - starting up")
+    LOG.info(f" Dell SNMP Listener (CDVL) - starting up")
     LOG.info(" Influx URL    : %s", INFLUX_URL)
     LOG.info(" Influx bucket : %s", INFLUX_BUCKET)
     LOG.info(" Bind          : %s:%d", LISTEN_HOST, LISTEN_PORT)

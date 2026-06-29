@@ -91,21 +91,19 @@ logging.basicConfig(
     level=logging.DEBUG if TEST_MODE else logging.INFO,
     format=f"%(asctime)s [%(levelname)s] dell-sify: %(message)s",
 )
-LOG = logging.getLogger("hitrack.listener.dell.sify")
+LOG = logging.getLogger(f"hitrack.listener.dell.sify")
 
-raw_log = logging.getLogger("raw_snmp_dell_sify")
+raw_log = logging.getLogger(f"raw_snmp_dell_sify")
 raw_log.setLevel(logging.INFO)
-raw_fh = logging.FileHandler("syslog_trap_listener_dell_sify_raw_snmp_data.log")
+raw_fh = logging.FileHandler(f"syslog_trap_listener_dell_sify_raw_snmp_data.log")
 raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 raw_log.addHandler(raw_fh)
 raw_log.propagate = False
 
-DELL_IP_MAP = {
-    # "10.226.65.30": "PowerStore_3000-SIFY",
-}
+DELL_IP_MAP = {}
 
 # ---------------------------------------------------------------------------
-# Heartbeat â€” inline per-listener
+# Heartbeat — inline per-listener
 # ---------------------------------------------------------------------------
 HB_URL      = os.environ.get("HITRACK_HEARTBEAT_URL",    "").strip()
 HB_TOKEN    = os.environ.get("HITRACK_HEARTBEAT_TOKEN",  "").strip()
@@ -242,7 +240,7 @@ async def _snmp_loop():
 
 def main():
     LOG.info("=" * 60)
-    LOG.info(" Dell SNMP Listener (SIFY) - starting up")
+    LOG.info(f" Dell SNMP Listener (SIFY) - starting up")
     LOG.info(" Influx URL    : %s", INFLUX_URL)
     LOG.info(" Influx bucket : %s", INFLUX_BUCKET)
     LOG.info(" Bind          : %s:%d", LISTEN_HOST, LISTEN_PORT)

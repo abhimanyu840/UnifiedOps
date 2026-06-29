@@ -59,7 +59,6 @@ def parse_event(body):
     if not body:
         return "informational", "other"
     
-    # Simple severity heuristic from SNMP trap text
     severity = "warning"
     body_lower = body.lower()
     if "critical" in body_lower or "fatal" in body_lower or "fail" in body_lower or "fault" in body_lower:
@@ -85,7 +84,6 @@ INFLUX_ORG    = os.environ.get("HITRACK_INFLUX_ORG",    "HDFC")
 INFLUX_BUCKET = os.environ.get("HITRACK_INFLUX_BUCKET", "Dell_BCP_Bucket")
 
 LISTEN_HOST = os.environ.get("HITRACK_LISTEN_HOST", "0.0.0.0")
-# Default to port 162 for SNMP Traps
 LISTEN_PORT = int(os.environ.get("HITRACK_LISTEN_PORT", "162"))
 TEST_MODE   = os.environ.get("HITRACK_TEST_MODE", "0") == "1"
 
@@ -93,21 +91,19 @@ logging.basicConfig(
     level=logging.DEBUG if TEST_MODE else logging.INFO,
     format=f"%(asctime)s [%(levelname)s] dell-bcp: %(message)s",
 )
-LOG = logging.getLogger("hitrack.listener.dell.bcp")
+LOG = logging.getLogger(f"hitrack.listener.dell.bcp")
 
-raw_log = logging.getLogger("raw_snmp_dell_bcp")
+raw_log = logging.getLogger(f"raw_snmp_dell_bcp")
 raw_log.setLevel(logging.INFO)
-raw_fh = logging.FileHandler("syslog_trap_listener_dell_bcp_raw_snmp_data.log")
+raw_fh = logging.FileHandler(f"syslog_trap_listener_dell_bcp_raw_snmp_data.log")
 raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 raw_log.addHandler(raw_fh)
 raw_log.propagate = False
 
-DELL_IP_MAP = {
-    # "10.225.41.50": "PowerStore_5000-BCP",
-}
+DELL_IP_MAP = {}
 
 # ---------------------------------------------------------------------------
-# Heartbeat â€” inline per-listener
+# Heartbeat — inline per-listener
 # ---------------------------------------------------------------------------
 HB_URL      = os.environ.get("HITRACK_HEARTBEAT_URL",    "").strip()
 HB_TOKEN    = os.environ.get("HITRACK_HEARTBEAT_TOKEN",  "").strip()
@@ -244,7 +240,7 @@ async def _snmp_loop():
 
 def main():
     LOG.info("=" * 60)
-    LOG.info(" Dell SNMP Listener (BCP) - starting up")
+    LOG.info(f" Dell SNMP Listener (BCP) - starting up")
     LOG.info(" Influx URL    : %s", INFLUX_URL)
     LOG.info(" Influx bucket : %s", INFLUX_BUCKET)
     LOG.info(" Bind          : %s:%d", LISTEN_HOST, LISTEN_PORT)
