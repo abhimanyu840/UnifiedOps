@@ -1298,9 +1298,9 @@ class TCPSyslogListener(threading.Thread):
     def run(self):
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind((LISTEN_HOST, LISTEN_PORT + 1))
+        srv.bind((LISTEN_HOST, LISTEN_PORT))
         srv.listen(50)
-        log.info("TCP syslog listener started on %s:%d", LISTEN_HOST, LISTEN_PORT + 1)
+        log.info("TCP syslog listener started on %s:%d", LISTEN_HOST, LISTEN_PORT)
 
         while True:
             try:
@@ -1387,7 +1387,7 @@ def main():
     log.info(" Syslog Trap Listener (%s, Brocade FOS via SANnav) - starting up", LOCATION_PAIR)
     log.info(" Influx URL          : %s", INFLUX_URL)
     log.info(" Influx bucket       : %s", INFLUX_BUCKET)
-    log.info(" Listen port         : %d (UDP) / %d (TCP)", LISTEN_PORT, LISTEN_PORT + 1)
+    log.info(" Listen port         : %d (UDP) / %d (TCP)", LISTEN_PORT, LISTEN_PORT)
     log.info(" Measurement         : san_switch")
     log.info(" SANnav sources      : %s", ", ".join(SANNAV_SOURCES) or "(none configured)")
     log.info(" Switch inventory    : %d total (CDVL=%d, SIFY=%d, other=%d)",

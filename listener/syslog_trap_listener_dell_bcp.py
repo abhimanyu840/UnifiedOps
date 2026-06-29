@@ -1,50 +1,38 @@
 #!/usr/bin/env python3
 """
 =============================================================================
-  Syslog Trap Listener -> InfluxDB v2  (UnifiedOps -- Dell EMC PowerStore/Max)
+  SNMP Trap Listener -> InfluxDB v2  (UnifiedOps -- Dell EMC)
   Location: BCP
 =============================================================================
 
-Standalone listener for the BCP Dell EMC pipeline. Placeholder parser
-until the real Dell syslog schema is reverse-engineered for this site.
+Standalone SNMP v1/v2c listener for the BCP Dell EMC pipeline.
+Captures all SNMP trap variables and categorizes them using regex.
 
     HITRACK_INFLUX_URL      default http://127.0.0.1:8387
     HITRACK_INFLUX_TOKEN    *** required for writes ***
     HITRACK_INFLUX_ORG      default HDFC
     HITRACK_INFLUX_BUCKET   default Dell_BCP_Bucket
     HITRACK_LISTEN_HOST     default 0.0.0.0
-    HITRACK_LISTEN_PORT     default 515
+    HITRACK_LISTEN_PORT     default 162
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
-import socket
 import threading
 import time
 from datetime import datetime, timezone
 from typing import Optional
 
+from pysnmp.entity import engine, config
+from pysnmp.carrier.asyncio.dgram import udp
+from pysnmp.entity.rfc3413 import ntfrcv
 
 # ---------------------------------------------------------------------------
-# Inline syslog body parser (severity from <PRI>, category from keyword regex).
-# Previously lived in `_syslog_helpers.py`; inlined so this listener stays
-# completely self-contained (no sibling-module imports).
+# Inline regex parsing
 # ---------------------------------------------------------------------------
-_PRI_RE = re.compile(r"<(?P<pri>\d{1,3})>")
-
-_PRI_SEVERITY = {
-    0: "critical",   # emergency
-    1: "critical",   # alert
-    2: "critical",   # critical
-    3: "error",
-    4: "warning",
-    5: "notice",
-    6: "informational",
-    7: "informational",  # debug
-}
-
 _CATEGORY_RULES = (
     ("disk_failure",       re.compile(r"\b(disk|drive|hdd|ssd|nvme)\b.*\b(fail|fault|error|bad)\b", re.I)),
     ("disk_failure",       re.compile(r"\bdisk\.(fail|error|fault)", re.I)),
@@ -66,30 +54,26 @@ _CATEGORY_RULES = (
     ("env_warning",        re.compile(r"hwHealthStateChanged|health.*alert|callhome", re.I)),
 )
 
-
 def parse_event(body):
-    """Return (severity, trap_category) parsed from a syslog body."""
+    """Return (severity, trap_category) parsed from the aggregated trap body."""
     if not body:
         return "informational", "other"
-    s = body.lstrip()
-    if s.startswith("[SOURCE_IP="):
-        cut = s.find("] ")
-        if cut > 0:
-            s = s[cut + 2:].lstrip()
-    severity = "informational"
-    m = _PRI_RE.match(s)
-    if m:
-        try:
-            severity = _PRI_SEVERITY.get(int(m.group("pri")) & 0x07, "informational")
-        except (TypeError, ValueError):
-            pass
+    
+    severity = "warning"
+    body_lower = body.lower()
+    if "critical" in body_lower or "fatal" in body_lower or "fail" in body_lower or "fault" in body_lower:
+        severity = "critical"
+    elif "error" in body_lower:
+        severity = "error"
+    elif "info" in body_lower or "clear" in body_lower or "ok" in body_lower:
+        severity = "informational"
+
     category = "other"
     for _cat, _pattern in _CATEGORY_RULES:
         if _pattern.search(body):
             category = _cat
             break
     return severity, category
-
 
 VENDOR   = "Dell"
 LOCATION = "BCP"
@@ -100,32 +84,26 @@ INFLUX_ORG    = os.environ.get("HITRACK_INFLUX_ORG",    "HDFC")
 INFLUX_BUCKET = os.environ.get("HITRACK_INFLUX_BUCKET", "Dell_BCP_Bucket")
 
 LISTEN_HOST = os.environ.get("HITRACK_LISTEN_HOST", "0.0.0.0")
-LISTEN_PORT = int(os.environ.get("HITRACK_LISTEN_PORT", "515"))
+LISTEN_PORT = int(os.environ.get("HITRACK_LISTEN_PORT", "162"))
 TEST_MODE   = os.environ.get("HITRACK_TEST_MODE", "0") == "1"
-
-BUFFER_SIZE = 8192
 
 logging.basicConfig(
     level=logging.DEBUG if TEST_MODE else logging.INFO,
     format=f"%(asctime)s [%(levelname)s] dell-bcp: %(message)s",
 )
-LOG = logging.getLogger("hitrack.listener.dell.bcp")
+LOG = logging.getLogger(f"hitrack.listener.dell.bcp")
 
-raw_log = logging.getLogger("raw_syslog_dell_bcp")
+raw_log = logging.getLogger(f"raw_snmp_dell_bcp")
 raw_log.setLevel(logging.INFO)
-raw_fh = logging.FileHandler("syslog_trap_listener_dell_bcp_raw_syslog_data.log")
+raw_fh = logging.FileHandler(f"syslog_trap_listener_dell_bcp_raw_snmp_data.log")
 raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 raw_log.addHandler(raw_fh)
 raw_log.propagate = False
 
-DELL_IP_MAP = {
-    # "10.225.41.50": "PowerStore_5000-BCP",
-}
-
-_HOSTNAME_RE = re.compile(r"<\d+>\d+\s+\S+\s+(\S+)\s")
+DELL_IP_MAP = {}
 
 # ---------------------------------------------------------------------------
-# Heartbeat â€” inline per-listener
+# Heartbeat — inline per-listener
 # ---------------------------------------------------------------------------
 HB_URL      = os.environ.get("HITRACK_HEARTBEAT_URL",    "").strip()
 HB_TOKEN    = os.environ.get("HITRACK_HEARTBEAT_TOKEN",  "").strip()
@@ -135,7 +113,6 @@ HB_INTERVAL = max(5, int(os.environ.get("HITRACK_HEARTBEAT_INTERVAL", "15")))
 HB_LISTENER = f"{VENDOR.lower()}-{LOCATION.lower()}"
 
 _msg_count: int = 0
-
 
 def _heartbeat_loop() -> None:
     if not (HB_URL and HB_TOKEN and HB_BUCKET):
@@ -173,7 +150,6 @@ def _heartbeat_loop() -> None:
             LOG.warning("heartbeat write failed: %s", exc)
         time.sleep(HB_INTERVAL)
 
-
 def _start_heartbeat() -> None:
     threading.Thread(target=_heartbeat_loop, daemon=True, name=f"hb-{HB_LISTENER}").start()
 
@@ -195,88 +171,76 @@ if _influx_enabled:
 else:
     LOG.warning("HITRACK_INFLUX_TOKEN not set - running in log-only mode")
 
-
-def _record(source_ip, raw):
+def _record(source_ip, raw_message):
     global _msg_count
     _msg_count += 1
-    try:
-        raw_str = raw.decode("utf-8", errors="replace").strip()
-        if raw_str:
-            raw_log.info(f"[{source_ip}] {raw_str}")
-    except Exception:
-        pass
+    
+    if raw_message:
+        raw_log.info(f"[{source_ip}] {raw_message}")
 
-    body = raw.decode("utf-8", errors="replace").strip()
-    preview = body.replace("\n", " ")[:240]
-    hostname = ""
-    m = _HOSTNAME_RE.search(body)
-    if m:
-        hostname = m.group(1)
-    array_name = DELL_IP_MAP.get(source_ip, hostname or "unknown")
-    severity, trap_category = parse_event(body)
-    LOG.info("%d bytes from %s (%s) :: %s", len(raw), source_ip, array_name, preview)
+    preview = raw_message[:240]
+    array_name = DELL_IP_MAP.get(source_ip, "unknown")
+    severity, trap_category = parse_event(raw_message)
+    
+    LOG.info("Trap from %s (%s) [%s] :: %s", source_ip, array_name, severity, preview)
+    
     if not _influx_enabled or _write_api is None:
         return
+        
     try:
         point = (
             Point("dell_event")
             .tag("vendor", VENDOR).tag("location", LOCATION)
             .tag("source_ip", source_ip).tag("array_name", array_name)
-            .tag("hostname", hostname or "unknown")
+            .tag("hostname", array_name)
             .tag("severity", severity)
             .tag("trap_category", trap_category)
-            .field("bytes", len(raw)).field("preview", preview).field("raw_message", body)
-            .field("error_message", body)
+            .field("bytes", len(raw_message)).field("preview", preview)
+            .field("raw_message", raw_message)
+            .field("error_message", raw_message)
             .time(datetime.now(timezone.utc), WritePrecision.NS)
         )
         _write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
     except Exception as exc:
         LOG.warning("Influx write failed: %s", exc)
 
+def _on_trap_received(snmpEngine, stateReference, contextEngineId, contextName, varBinds, cbCtx):
+    transportDomain, transportAddress = snmpEngine.msgAndPduDsp.getTransportInfo(stateReference)
+    source_ip = transportAddress[0] if transportAddress else "unknown"
+    
+    parts = []
+    for name, val in varBinds:
+        val_str = val.prettyPrint()
+        if val_str and val_str.strip():
+            parts.append(val_str)
+            
+    aggregated_message = " | ".join(parts)
+    _record(source_ip, aggregated_message)
 
-def _udp_loop(sock):
-    while True:
-        try:
-            data, addr = sock.recvfrom(BUFFER_SIZE)
-            _record(addr[0], data)
-        except OSError:
-            break
-
-
-def _tcp_client(conn, addr):
+async def _snmp_loop():
+    snmpEngine = engine.SnmpEngine()
+    
     try:
-        buf = b""
-        conn.settimeout(30)
-        while True:
-            chunk = conn.recv(BUFFER_SIZE)
-            if not chunk:
-                break
-            buf += chunk
-            while b"\n" in buf:
-                line, buf = buf.split(b"\n", 1)
-                if line.strip():
-                    _record(addr[0], line)
-        if buf.strip():
-            _record(addr[0], buf)
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        config.add_transport(
+            snmpEngine,
+            udp.DOMAIN_NAME,
+            udp.UdpTransport().open_server_mode((LISTEN_HOST, LISTEN_PORT))
+        )
+        LOG.info("UDP %d ready for SNMP traps", LISTEN_PORT)
+    except Exception as exc:
+        LOG.error("Failed to bind SNMP on UDP %d: %s", LISTEN_PORT, exc)
+        return
 
+    config.add_v1_system(snmpEngine, 'dell-area', 'public')
 
-def _tcp_loop(sock):
+    ntfrcv.NotificationReceiver(snmpEngine, _on_trap_received)
+
     while True:
-        try:
-            conn, addr = sock.accept()
-            threading.Thread(target=_tcp_client, args=(conn, addr), daemon=True).start()
-        except OSError:
-            break
-
+        await asyncio.sleep(3600)
 
 def main():
     LOG.info("=" * 60)
-    LOG.info(" Dell Syslog Listener (BCP) - starting up")
+    LOG.info(f" Dell SNMP Listener (BCP) - starting up")
     LOG.info(" Influx URL    : %s", INFLUX_URL)
     LOG.info(" Influx bucket : %s", INFLUX_BUCKET)
     LOG.info(" Bind          : %s:%d", LISTEN_HOST, LISTEN_PORT)
@@ -284,41 +248,10 @@ def main():
     LOG.info("=" * 60)
     _start_heartbeat()
 
-    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    udp.bind((LISTEN_HOST, LISTEN_PORT))
-
-    tcp_sock: Optional[socket.socket] = None
     try:
-        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        tcp_sock.bind((LISTEN_HOST, LISTEN_PORT + 1))
-        tcp_sock.listen(50)
-        LOG.info("UDP %d / TCP %d ready", LISTEN_PORT, LISTEN_PORT + 1)
-    except OSError as exc:
-        LOG.warning("TCP bind on %d failed: %s", LISTEN_PORT + 1, exc)
-        tcp_sock = None
-
-    udp_thread = threading.Thread(target=_udp_loop, args=(udp,), daemon=True)
-    udp_thread.start()
-    if tcp_sock is not None:
-        threading.Thread(target=_tcp_loop, args=(tcp_sock,), daemon=True).start()
-
-    try:
-        udp_thread.join()
+        asyncio.run(_snmp_loop())
     except KeyboardInterrupt:
         LOG.info("Shutdown requested")
-    finally:
-        try:
-            udp.close()
-        except Exception:
-            pass
-        if tcp_sock is not None:
-            try:
-                tcp_sock.close()
-            except Exception:
-                pass
-
 
 if __name__ == "__main__":
     main()

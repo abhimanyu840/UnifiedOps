@@ -58,20 +58,14 @@ export function DellBadge({ size = 40, ...rest }: Props) {
         r="36"
         fill="none"
         stroke="#0085C3"
-        strokeWidth="5"
+        strokeWidth="6"
       />
-      <text
-        x="50"
-        y="58"
-        textAnchor="middle"
-        fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif"
-        fontWeight="900"
-        fontSize="22"
-        letterSpacing="0.5"
-        fill="#0085C3"
-      >
-        DELL
-      </text>
+      <g fill="#0085C3" fontFamily="'Inter', 'Helvetica Neue', Arial, sans-serif" fontWeight="900" fontSize="23" letterSpacing="-1">
+        <text x="21" y="58">D</text>
+        <text x="43" y="56" transform="rotate(-15, 43, 56)">E</text>
+        <text x="59" y="58">L</text>
+        <text x="73" y="58">L</text>
+      </g>
     </svg>
   );
 }
