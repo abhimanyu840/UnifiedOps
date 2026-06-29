@@ -1180,9 +1180,9 @@ class TCPSyslogListener(threading.Thread):
     def run(self):
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind((LISTEN_HOST, LISTEN_PORT + 1))
+        srv.bind((LISTEN_HOST, LISTEN_PORT))
         srv.listen(50)
-        log.info("TCP syslog listener started on %s:%d", LISTEN_HOST, LISTEN_PORT + 1)
+        log.info("TCP syslog listener started on %s:%d", LISTEN_HOST, LISTEN_PORT)
 
         while True:
             try:

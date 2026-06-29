@@ -292,11 +292,11 @@ def main():
     try:
         tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        tcp_sock.bind((LISTEN_HOST, LISTEN_PORT + 1))
+        tcp_sock.bind((LISTEN_HOST, LISTEN_PORT))
         tcp_sock.listen(50)
-        LOG.info("UDP %d / TCP %d ready", LISTEN_PORT, LISTEN_PORT + 1)
+        LOG.info("UDP %d / TCP %d ready", LISTEN_PORT, LISTEN_PORT)
     except OSError as exc:
-        LOG.warning("TCP bind on %d failed: %s", LISTEN_PORT + 1, exc)
+        LOG.warning("TCP bind on %d failed: %s", LISTEN_PORT, exc)
         tcp_sock = None
 
     udp_thread = threading.Thread(target=_udp_loop, args=(udp,), daemon=True)

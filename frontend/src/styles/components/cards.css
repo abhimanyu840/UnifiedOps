@@ -279,10 +279,49 @@
     0 0 22px rgba(0, 194, 255, 0.35);
 }
 
+.health-card--hitachi {
+  background:
+    radial-gradient(ellipse at top left, rgba(230, 0, 18, 0.08), transparent 60%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 100% 100%, 8px 8px, 100% 100%;
+}
 .health-card--hitachi.health-card--active { border-color: #E60012; box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 30px -10px rgba(0,0,0,0.85), 0 0 0 1px rgba(230, 0, 18, 0.55), 0 0 22px rgba(230, 0, 18, 0.4); }
+
+.health-card--netapp {
+  background:
+    radial-gradient(ellipse at top left, rgba(77, 163, 255, 0.08), transparent 60%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 100% 100%, 8px 8px, 100% 100%;
+}
 .health-card--netapp.health-card--active  { border-color: #4DA3FF; box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 30px -10px rgba(0,0,0,0.85), 0 0 0 1px rgba(0, 103, 197, 0.55), 0 0 22px rgba(77, 163, 255, 0.4); }
+
+.health-card--dell {
+  background:
+    radial-gradient(ellipse at top left, rgba(92, 225, 255, 0.08), transparent 60%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 100% 100%, 8px 8px, 100% 100%;
+}
 .health-card--dell.health-card--active    { border-color: #5CE1FF; box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 30px -10px rgba(0,0,0,0.85), 0 0 0 1px rgba(0, 133, 195, 0.55), 0 0 22px rgba(92, 225, 255, 0.4); }
+
+.health-card--brocade {
+  background:
+    radial-gradient(ellipse at top left, rgba(255, 106, 0, 0.08), transparent 60%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 100% 100%, 8px 8px, 100% 100%;
+}
 .health-card--brocade.health-card--active { border-color: #FF6A00; box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 30px -10px rgba(0,0,0,0.85), 0 0 0 1px rgba(255, 106, 0, 0.55), 0 0 22px rgba(255, 162, 77, 0.4); }
+
+.health-card--total {
+  background:
+    radial-gradient(ellipse at top left, rgba(255, 255, 255, 0.04), transparent 60%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 100% 100%, 8px 8px, 100% 100%;
+}
 
 /* Offline card — data not flowing for that vendor */
 .health-card--offline {
@@ -379,5 +418,73 @@
   height: 6px;
   border-radius: 999px;
   background: currentColor;
+}
+
+/* ---------- Unique Card Textures ---------- */
+
+/* 1. Alert Severity: Deep indigo/purple ambient glow + concentric circles & dots */
+.card--severity {
+  background:
+    radial-gradient(ellipse at top left, rgba(79, 70, 229, 0.08), transparent 70%),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    repeating-radial-gradient(circle at center, rgba(79, 70, 229, 0.03) 0, rgba(79, 70, 229, 0.03) 1px, transparent 1px, transparent 20px),
+    var(--bg-card);
+  background-size: 150% 150%, 14px 14px, 100% 100%, 100% 100%;
+  border-color: rgba(79, 70, 229, 0.25);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 30px -10px rgba(0, 0, 0, 0.85);
+}
+
+/* 2. Alert Trend: Cyan glow with subtle digital scanlines */
+.card--trend {
+  background:
+    radial-gradient(ellipse at right top, rgba(0, 194, 255, 0.12), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0, rgba(255, 255, 255, 0.025) 1px, transparent 1px, transparent 6px),
+    var(--bg-card);
+  background-size: 200% 200%, 100% 100%, 100% 100%;
+  border-color: rgba(0, 194, 255, 0.25);
+}
+
+/* 3. Alert Type Breakdown: Purple ambient + subtle diagonal pinstripes */
+.card--type {
+  background:
+    radial-gradient(circle at bottom right, rgba(124, 58, 237, 0.12), transparent 70%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0, rgba(255, 255, 255, 0.025) 1px, transparent 1px, transparent 12px),
+    var(--bg-card);
+  background-size: 150% 150%, 100% 100%, 100% 100%;
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+/* 4. Recent Critical Alerts: Royal blue/purple gradient + subtle diamond mesh */
+.card--recent {
+  background:
+    linear-gradient(180deg, rgba(67, 56, 202, 0.08) 0%, transparent 80%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    var(--bg-card);
+  background-size: 100% 100%, 16px 16px, 16px 16px, 100% 100%;
+  background-position: 0 0, 8px 0, 8px 0, 0 0;
+  border-top-color: rgba(67, 56, 202, 0.4);
+}
+
+/* 5. Top Systems: Teal glow with subtle blueprint graph grid */
+.card--top-systems {
+  background:
+    radial-gradient(ellipse at left center, rgba(13, 148, 136, 0.12) 0%, transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 100% 100%, 20px 20px, 20px 20px, 100% 100%;
+  border-color: rgba(13, 148, 136, 0.25);
+}
+
+/* 6. Total Alerts: Holographic grid that slowly pans */
+.card--total {
+  background:
+    radial-gradient(ellipse at top center, rgba(255, 255, 255, 0.06), transparent 60%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 100% 100%, 20px 20px, 20px 20px, 100% 100%;
+  border-top-color: rgba(255, 255, 255, 0.25);
 }
 

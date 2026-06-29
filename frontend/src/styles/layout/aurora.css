@@ -33,9 +33,11 @@ html, body {
   pointer-events: none;
   z-index: -2;
   filter: blur(120px);
-  will-change: transform, background;
+  will-change: transform, background, opacity;
   background: var(--aurora-a);
-  animation: aurora-a 72s ease-in-out infinite alternate;
+  animation: 
+    aurora-a 72s ease-in-out infinite alternate,
+    aurora-shimmer 6s ease-in-out infinite alternate;
   transition: background 600ms ease;
 }
 
@@ -46,10 +48,12 @@ html, body {
   pointer-events: none;
   z-index: -1;
   filter: blur(90px);
-  will-change: transform, background;
+  will-change: transform, background, opacity;
   mix-blend-mode: screen;
   background: var(--aurora-b);
-  animation: aurora-b 84s ease-in-out infinite alternate;
+  animation: 
+    aurora-b 84s ease-in-out infinite alternate,
+    aurora-shimmer 9s ease-in-out infinite alternate-reverse;
   transition: background 600ms ease;
 }
 
@@ -165,6 +169,11 @@ html, body {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
   50%  { transform: translate3d(5%, -4%, 0) scale(1.12); }
   100% { transform: translate3d(-5%, 4%, 0) scale(1.06); }
+}
+
+@keyframes aurora-shimmer {
+  0%   { opacity: 0.75; }
+  100% { opacity: 1; }
 }
 
 /* Body texture: very faint grain + vignette anchored to viewport */

@@ -16,51 +16,51 @@
   --logo-grad-to:   #007BFF;
 
   /* Status */
-  --healthy:        #00D26A;
-  --warning:        #FFB020;
-  --critical:       #FF4D4F;
-  --offline:        #6B7280;
-  --maintenance:    #9B5CFF;
-  --unknown:        #64748B;
+  --healthy:        #00E676;
+  --warning:        #FFB800;
+  --critical:       #FF3333;
+  --offline:        #8C98A9;
+  --maintenance:    #B366FF;
+  --unknown:        #7E90AA;
 
   /* Severity (UI-friendly aliases) */
-  --sev-critical:   #FF4D4F;
-  --sev-error:      #FF7A6F;
-  --sev-warning:    #FFB020;
-  --sev-notice:     #FACC15;
-  --sev-info:       #4DA3FF;
-  --sev-ok:         #00D26A;
+  --sev-critical:   #FF3333;
+  --sev-error:      #FF6B6B;
+  --sev-warning:    #FFB800;
+  --sev-notice:     #FFD600;
+  --sev-info:       #3399FF;
+  --sev-ok:         #00E676;
 
   /* Vendors */
-  --hitachi:        #E60012;
-  --hitachi-soft:   #FF4D5A;
-  --netapp:         #0067C5;
-  --netapp-soft:    #4DA3FF;
-  --dell:           #00A3E0;
-  --dell-soft:      #5CE1FF;
-  --brocade:        #FF6A00;
-  --brocade-soft:   #FFA24D;
+  --hitachi:        #FF1A1A;
+  --hitachi-soft:   #FF6666;
+  --netapp:         #0088FF;
+  --netapp-soft:    #66B2FF;
+  --dell:           #00BFFF;
+  --dell-soft:      #66D9FF;
+  --brocade:        #FF8000;
+  --brocade-soft:   #FFB266;
 
   /* Location colors (chart palette) */
-  --loc-cdvl:       #1E90FF;
-  --loc-bcp:        #9B5CFF;
-  --loc-sify:       #00D26A;
+  --loc-cdvl:       #00AAFF;
+  --loc-bcp:        #B366FF;
+  --loc-sify:       #00E676;
 
   /* Typography */
-  --text-primary:   #EAF2FF;
-  --text-secondary: #9FB3C8;
-  --text-muted:     #7C8CA5;
-  --text-dim:       #64748B;
-  --text-disabled:  #6B7280;
-  --text-link:      #4DA3FF;
+  --text-primary:   #FFFFFF;
+  --text-secondary: #B4CDE6;
+  --text-muted:     #93A8C6;
+  --text-dim:       #7E90AA;
+  --text-disabled:  #64748B;
+  --text-link:      #66B2FF;
 
   /* Borders — graphite */
-  --border-soft:    #25252B;
-  --border-mid:     #2F2F37;
-  --border-card:    #3A3A44;
-  --border-strong:  #4A4A56;
-  --border-hover:   #4DA3FF;
-  --border-active:  #00C2FF;
+  --border-soft:    #303038;
+  --border-mid:     #3D3D48;
+  --border-card:    #4A4A58;
+  --border-strong:  #5F5F70;
+  --border-hover:   #66B2FF;
+  --border-active:  #00D0FF;
 
   /* Glows */
   --glow-blue:      0 0 24px rgba(0, 194, 255, 0.35);

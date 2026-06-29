@@ -22,7 +22,7 @@ Configuration overrides (typical: /etc/hi-track/listener.netapp.cdvl.env):
     HITRACK_INFLUX_ORG      default HDFC
     HITRACK_INFLUX_BUCKET   default NetApp_CDVL_Bucket
     HITRACK_LISTEN_HOST     default 0.0.0.0
-    HITRACK_LISTEN_PORT     default 516          (TCP listens on +1)
+    HITRACK_LISTEN_PORT     default 516
     HITRACK_TEST_MODE       "1" to enable loopback spoofing for dev
     HITRACK_TEST_DEFAULT_IP fallback source IP for test mode
 """
@@ -352,89 +352,182 @@ def apply_test_mode(raw: bytes, source_ip: str) -> Tuple[bytes, str, bool]:
 # Only events whose EMS name starts with one of these prefixes are
 # considered hardware alerts.  Everything else is silently dropped.
 # ---------------------------------------------------------------------------
-EMS_HARDWARE_PREFIXES: List[Tuple[str, str]] = [
-    # --- Disk / RAID ---
-    ("callhome.disk",          "disk_failure"),
-    ("callhome.raidDgrd",      "raid_degraded"),
-    ("callhome.spares",        "disk_failure"),
-    ("disk.fail",              "disk_failure"),
-    ("disk.outOfService",      "disk_failure"),
-    ("disk.write.failure",     "disk_failure"),
-    ("disk.ioRecovery",        "disk_failure"),
-    ("raid.rg.",               "raid_degraded"),
-    ("raid.fdr.",              "raid_degraded"),
+NETAPP_HARDWARE_EMS_EXACT: Dict[str, str] = {
+    # ── Hardware / Health Monitor ──
+    "hm.alert.raised":                    "hardware_alert",
+    "hm.alert.cleared":                   "hardware_cleared",
+    "hm.monitor.startingMonitoring":      "hardware_notice",
+    "callhome.hm.alert.major":            "hardware_alert",
+    "callhome.hm.alert.minor":            "hardware_alert",
 
-    # --- Shelf hardware ---
-    ("monitor.shelf.",         "shelf_fault"),
-    ("callhome.shlf.",         "shelf_fault"),
-    ("ses.status.",            "shelf_fault"),
-    ("acp.shelf.",             "shelf_fault"),
-    ("sas.adapter.",           "shelf_fault"),
+    # ── Fan ──
+    "callhome.shlf.fan":                  "fan_failure",
+    "callhome.shlf.fan.warn":             "fan_warning",
+    "monitor.fan.critical":               "fan_failure",
+    "monitor.fan.failed":                 "fan_failure",
+    "monitor.fan.warning":                "fan_warning",
+    "monitor.fan.ok":                     "fan_ok",
+    "callhome.fan.failed":                "fan_failure",
 
-    # --- Fan / Cooling ---
-    ("monitor.fan.",           "fan_failure"),
-    ("monitor.chassis.fan",    "fan_failure"),
-    ("callhome.c.fan.",        "fan_failure"),
-    ("callhome.chassis.fan",   "fan_failure"),
+    # ── Power Supply ──
+    "callhome.shlf.power.intr":           "power_failure",
+    "callhome.shlf.ps.fault":             "power_failure",
+    "monitor.psu.failed":                 "power_failure",
+    "monitor.psu.warning":                "power_warning",
+    "monitor.psu.ok":                     "power_ok",
+    "callhome.psu.failed":                "power_failure",
+    "monitor.ioCard.degraded":            "hardware_alert",
 
-    # --- Power Supply ---
-    ("callhome.shlf.power",    "power_failure"),
-    ("callhome.chassis.power", "power_failure"),
-    ("callhome.power.",        "power_failure"),
+    # ── Temperature ──
+    "callhome.shlf.overtemp":             "temperature_alarm",
+    "callhome.shlf.fault":                "shelf_fault",
+    "monitor.temp.critical":              "temperature_alarm",
+    "monitor.temp.warning":               "temperature_warning",
+    "monitor.temp.ok":                    "temperature_ok",
+    "callhome.temp.high":                 "temperature_alarm",
+    "callhome.temp.low":                  "temperature_alarm",
 
-    # --- Temperature ---
-    ("callhome.shlf.overtemp", "temperature_alarm"),
-    ("monitor.chassisTemperature", "temperature_alarm"),
-    ("monitor.shelf.temp",     "temperature_alarm"),
+    # ── Disk / Drive ──
+    "disk.failure":                       "disk_failure",
+    "disk.predictiveFailure":             "disk_failure",
+    "disk.ioMedErr":                      "disk_warning",
+    "disk.slippedSector":                 "disk_warning",
+    "disk.realmSlippedSector":            "disk_warning",
+    "disk.encryptionErr":                 "disk_warning",
+    "disk.readError":                     "disk_warning",
+    "disk.writeError":                    "disk_warning",
+    "disk.readReassign":                  "disk_warning",
+    "disk.writeReassign":                 "disk_warning",
+    "disk.removed":                       "disk_failure",
+    "callhome.disk.failure":              "disk_failure",
+    "callhome.disk.predictive.failure":   "disk_failure",
+    "callhome.disk.missing.carrier":      "disk_failure",
 
-    # --- Controller / HA ---
-    ("callhome.panic",         "controller_fault"),
-    ("callhome.takeover",      "controller_fault"),
-    ("callhome.giveback",      "controller_fault"),
-    ("cf.takeover.",           "controller_fault"),
-    ("cf.fsm.",                "controller_fault"),
+    # ── RAID (hardware-driven degradation) ──
+    "raid.rg.degraded":                   "raid_degraded",
+    "raid.rg.double.degraded":            "raid_degraded",
+    "raid.disk.missing":                  "disk_failure",
+    "raid.spare.missing":                 "disk_warning",
+    "raid.rg.recons.started":             "raid_rebuild",
+    "raid.rg.recons.done":                "raid_rebuild",
+    "callhome.raid.degraded":             "raid_degraded",
 
-    # --- NVRAM ---
-    ("callhome.nvram",         "nvram_alert"),
-    ("nvram.",                 "nvram_alert"),
-    ("nvmem.",                 "nvram_alert"),
+    # ── NVRAM / Battery ──
+    "nvram.battery.low":                  "battery_alert",
+    "nvram.battery.failed":               "battery_alert",
+    "nvram.battery.discharging":          "battery_alert",
+    "nvram.battery.charging":             "battery_ok",
+    "nvram.battery.fullyCharged":         "battery_ok",
+    "nvram.lowcharge":                    "battery_alert",
+    "callhome.nvram.battery":             "battery_alert",
+    "callhome.nvram.battery.low":         "battery_alert",
+    "callhome.nvram.hw.failure":          "battery_alert",
 
-    # --- Battery ---
-    ("callhome.battery",       "battery_alert"),
-    ("monitor.nvramLowBattery", "battery_alert"),
-    ("monitor.shutdown.nvramLowBattery", "battery_alert"),
+    # ── Shelf / SES ──
+    "ses.accessError":                    "shelf_fault",
+    "ses.portError":                      "shelf_fault",
+    "ses.statusEvent":                    "shelf_event",
+    "ses.configError":                    "shelf_fault",
+    "shelf.fault":                        "shelf_fault",
+    "shelf.temp.fan.fail":                "fan_failure",
+    "shelf.environmental.sensor.error":   "shelf_fault",
+    "callhome.ses.error":                 "shelf_fault",
 
-    # --- HA Interconnect ---
-    ("callhome.hainterconnect", "interconnect_fault"),
-    ("cf.ic.",                  "interconnect_fault"),
-    ("monitor.ha.",             "interconnect_fault"),
-    ("ic.linkState",            "interconnect_fault"),
+    # ── Controller / HA ──
+    "cf.takeover.started":                "controller_takeover",
+    "cf.takeover.done":                   "controller_takeover",
+    "cf.takeover.of.partner.started":     "controller_takeover",
+    "cf.giveback.started":                "controller_giveback",
+    "cf.giveback.done":                   "controller_giveback",
+    "cf.giveback.completion":             "controller_giveback",
+    "cf.reboot":                          "controller_fault",
+    "cf.interconnect.down":               "controller_fault",
+    "cf.interconnect.up":                 "controller_link",
+    "cf.partner.link.status":             "controller_link",
+    "cf.partner.not.responding":          "controller_fault",
+    "cf.partner.down":                    "controller_fault",
+    "callhome.reboot.failure":            "controller_fault",
 
-    # --- Network / Port ---
-    ("callhome.net.",          "port_fault"),
-    ("callhome.fcp.",          "port_fault"),
+    # ── Node ──
+    "node.panic":                         "node_fault",
+    "node.down":                          "node_fault",
+    "node.up":                            "node_ok",
+    "node.failed":                        "node_fault",
+    "callhome.panic":                     "node_fault",
 
-    # --- Firmware / SP / BMC ---
-    ("callhome.firmware",      "firmware_alert"),
-    ("sp.",                    "firmware_alert"),
-    ("bmc.",                   "firmware_alert"),
+    # ── Network port / link ──
+    "port.linkDown":                      "link_down",
+    "port.linkUp":                        "link_up",
+    "net.port.linkDown":                  "link_down",
+    "net.port.linkUp":                    "link_up",
+    "callhome.sp.net.link.err":           "link_down",
 
-    # --- General environment / health ---
-    ("callhome.env",           "env_warning"),
-    ("monitor.globalStatus.",  "env_warning"),
-    ("hm.alert.",              "env_warning"),
-    ("health.monitor.",        "env_warning"),
-    ("callhome.clam.",         "env_warning"),
-]
+    # ── HBA / SAS / FC ──
+    "HBA.offline":                        "port_fault",
+    "HBA.online":                         "port_ok",
+    "sas.path.disconnect":                "port_fault",
+    "sas.path.connect":                   "port_ok",
+    "fci.link.down":                      "link_down",
+    "fci.link.up":                        "link_up",
+    "fci.port.offline":                   "port_fault",
+    "fci.port.online":                    "port_ok",
+    "callhome.fc.hba.fault":              "port_fault",
 
-# All known hardware categories (for boolean trap flags)
-ALL_HW_CATEGORIES = sorted(set(cat for _, cat in EMS_HARDWARE_PREFIXES))
+    # ── Service Processor / BMC ──
+    "sp.heartbeat.stopped":               "sp_alert",
+    "sp.heartbeat.resumed":               "sp_alert",
+    "sp.firmware.update.failed":          "sp_alert",
+    "sp.reset":                           "sp_alert",
+    "callhome.sp.firmware.update.fail":   "sp_alert",
+    "callhome.sp.hb.stopped":             "sp_alert",
+}
 
+NETAPP_HARDWARE_EMS_PREFIX: Tuple[Tuple[str, str], ...] = (
+    ("callhome.shlf.",      "shelf_fault"),
+    ("callhome.nvram.",     "battery_alert"),
+    ("callhome.disk.",      "disk_failure"),
+    ("callhome.fan.",       "fan_failure"),
+    ("callhome.psu.",       "power_failure"),
+    ("callhome.temp.",      "temperature_alarm"),
+    ("callhome.hm.",        "hardware_alert"),
+    ("callhome.ses.",       "shelf_fault"),
+    ("callhome.fc.",        "port_fault"),
+    ("callhome.sp.",        "sp_alert"),
+    ("callhome.reboot.",    "controller_fault"),
+    ("callhome.panic",      "node_fault"),
+    ("callhome.raid.",      "raid_degraded"),
+    ("hm.",                 "hardware_alert"),
+    ("monitor.fan",         "fan_failure"),
+    ("monitor.psu",         "power_failure"),
+    ("monitor.temp",        "temperature_alarm"),
+    ("monitor.io",          "hardware_alert"),
+    ("disk.",               "disk_failure"),
+    ("nvram.",              "battery_alert"),
+    ("ses.",                "shelf_fault"),
+    ("shelf.",              "shelf_fault"),
+    ("cf.",                 "controller_fault"),
+    ("raid.",               "raid_degraded"),
+    ("HBA.",                "port_fault"),
+    ("sas.",                "port_fault"),
+    ("fci.",                "link_down"),
+    ("sp.",                 "sp_alert"),
+    ("port.link",           "link_down"),
+    ("net.port.",           "link_down"),
+)
+
+ALL_HW_CATEGORIES = sorted(set(
+    list(NETAPP_HARDWARE_EMS_EXACT.values()) +
+    [cat for _, cat in NETAPP_HARDWARE_EMS_PREFIX]
+))
 
 def classify_ems_event(event_name: str) -> Optional[str]:
     """Return the hardware category for an EMS event, or None if not hardware."""
+    exact = NETAPP_HARDWARE_EMS_EXACT.get(event_name)
+    if exact:
+        return exact
+
     lower = event_name.lower()
-    for prefix, category in EMS_HARDWARE_PREFIXES:
+    for prefix, category in NETAPP_HARDWARE_EMS_PREFIX:
         if lower.startswith(prefix.lower()):
             return category
     return None
@@ -712,64 +805,6 @@ class InfluxWriter:
 
 
 # ---------------------------------------------------------------------------
-# UDP LISTENER
-# ---------------------------------------------------------------------------
-
-class UDPSyslogListener(threading.Thread):
-    def __init__(self, writer: InfluxWriter, pool: ThreadPoolExecutor) -> None:
-        super().__init__(daemon=True, name="UDPSyslogListener")
-        self.writer = writer
-        self.pool = pool
-
-    def run(self) -> None:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((LISTEN_HOST, LISTEN_PORT))
-        log.info(
-            "UDP syslog listener started on %s:%d (workers=%d)",
-            LISTEN_HOST, LISTEN_PORT, WORKER_THREADS,
-        )
-        while True:
-            try:
-                data, addr = sock.recvfrom(BUFFER_SIZE)
-                self.pool.submit(self._safe_handle, data, addr[0])
-            except Exception as exc:
-                log.error("UDP receive error: %s", exc)
-
-    def _safe_handle(self, data: bytes, source_ip: str) -> None:
-        try:
-            self._handle(data, source_ip)
-        except Exception as exc:
-            log.exception("UDP worker crashed processing packet from %s: %s",
-                          source_ip, exc)
-
-    def _handle(self, data: bytes, source_ip: str) -> None:
-        data, source_ip, spoofed = apply_test_mode(data, source_ip)
-        measurement = classify_source(source_ip)
-        if measurement is None:
-            log.debug("Dropped packet from non-allowed IP: %s", source_ip)
-            return
-
-        if spoofed:
-            log.info("TEST_MODE: attributing loopback packet to %s", source_ip)
-
-        fields = parse_syslog(data, source_ip)
-        if fields is None:
-            return  # non-hardware event, silently dropped
-
-        log.info(
-            "[UDP] %s (%s) -> [%s] sev=%s cat=%s ems=%s | %s",
-            source_ip, fields.get("array_name", "unknown"),
-            measurement,
-            fields.get("severity", "?"),
-            fields.get("trap_category", "?"),
-            fields.get("ems_event_name", "?"),
-            (str(fields.get("message", "")) or "")[:120],
-        )
-        self.writer.write(measurement, source_ip, fields)
-
-
-# ---------------------------------------------------------------------------
 # TCP LISTENER
 # ---------------------------------------------------------------------------
 
@@ -781,9 +816,9 @@ class TCPSyslogListener(threading.Thread):
     def run(self) -> None:
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind((LISTEN_HOST, LISTEN_PORT + 1))
+        srv.bind((LISTEN_HOST, LISTEN_PORT))
         srv.listen(50)
-        log.info("TCP syslog listener started on %s:%d", LISTEN_HOST, LISTEN_PORT + 1)
+        log.info("TCP syslog listener started on %s:%d", LISTEN_HOST, LISTEN_PORT)
         while True:
             try:
                 conn, addr = srv.accept()
@@ -814,9 +849,24 @@ class TCPSyslogListener(threading.Thread):
                 if not chunk:
                     break
                 buf += chunk
-                while b"\n" in buf:
-                    line, buf = buf.split(b"\n", 1)
-                    if not line:
+                while buf:
+                    m = re.match(br'^(\d+)\s(.*)', buf, re.DOTALL)
+                    if m:
+                        msg_len = int(m.group(1))
+                        header_len = len(m.group(1)) + 1
+                        if len(buf) >= header_len + msg_len:
+                            line = buf[header_len : header_len + msg_len]
+                            buf = buf[header_len + msg_len :]
+                        else:
+                            break
+                    elif b"\n" in buf:
+                        line, buf = buf.split(b"\n", 1)
+                    elif b"\0" in buf:
+                        line, buf = buf.split(b"\0", 1)
+                    else:
+                        break
+
+                    if not line.strip():
                         continue
                     line, effective_ip, spoofed = apply_test_mode(line, source_ip)
                     line_measurement = measurement or classify_source(effective_ip)
@@ -867,25 +917,14 @@ def main() -> None:
     _start_heartbeat()
 
     writer = InfluxWriter()
-
-    pool = ThreadPoolExecutor(
-        max_workers=WORKER_THREADS,
-        thread_name_prefix="netapp-worker",
-    )
-
-    udp = UDPSyslogListener(writer, pool)
     tcp = TCPSyslogListener(writer)
-
-    udp.start()
     tcp.start()
 
     try:
-        udp.join()
         tcp.join()
     except KeyboardInterrupt:
         log.info("Shutting down - KeyboardInterrupt received.")
     finally:
-        pool.shutdown(wait=False)
         writer.close()
         log.info("InfluxDB client closed. Bye.")
 
