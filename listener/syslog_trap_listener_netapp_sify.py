@@ -384,6 +384,13 @@ NETAPP_HARDWARE_EMS_EXACT: Dict[str, str] = {
     "net.port.linkDown":                  "link_down",
     "net.port.linkUp":                    "link_up",
     "callhome.sp.net.link.err":           "link_down",
+    "netif.linkDown":                     "link_down",
+    "netif.linkUp":                       "link_up",
+    "vifmgr.portdown":                    "link_down",
+    "vifmgr.portup":                      "link_up",
+    "vifmgr.reach.noreach":               "link_down",
+    "net.ifgrp.lacp.link.inactive":       "link_down",
+    "net.ifgrp.lacp.link.active":         "link_up",
 
     # ── HBA / SAS / FC ──
     "HBA.offline":                        "port_fault",
@@ -575,10 +582,15 @@ def parse_syslog(raw: bytes, source_ip: str) -> Optional[Dict[str, object]]:
             node_name = gd.get("hostname", "")
             ems_process = gd.get("appname", "")
             message = gd.get("message", "")
+            msgid = gd.get("msgid", "")
+            if msgid and msgid != "-":
+                ems_event_name = msgid
+            
             fields["syslog_format"] = "RFC5424"
             inner = ONTAP_LEGACY_RE.search(message)
             if inner:
-                ems_event_name = inner.group("ems_event") or ""
+                if not ems_event_name:
+                    ems_event_name = inner.group("ems_event") or ""
                 ems_severity_raw = (inner.group("ems_severity") or "").strip().lower()
                 message = inner.group("message") or message
         else:
