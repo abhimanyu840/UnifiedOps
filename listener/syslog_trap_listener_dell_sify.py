@@ -12,6 +12,7 @@ OID structures, filters to HARDWARE-ONLY alerts, and writes to InfluxDB v2.
 from __future__ import annotations
 
 import os
+import json
 import re
 import threading
 import time
@@ -77,7 +78,19 @@ raw_log.setLevel(logging.INFO)
 _raw_fh = logging.FileHandler(f"snmp_trap_listener_{LOCATION.lower()}_raw.log")
 _raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 raw_log.addHandler(_raw_fh)
+raw_log = logging.getLogger(f"raw_snmp_{LOCATION.lower()}")
+raw_log.setLevel(logging.INFO)
+_raw_fh = logging.FileHandler(f"snmp_trap_listener_{LOCATION.lower()}_raw.log")
+_raw_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+raw_log.addHandler(_raw_fh)
 raw_log.propagate = False
+
+decoded_log = logging.getLogger(f"decoded_snmp_{LOCATION.lower()}")
+decoded_log.setLevel(logging.INFO)
+_dec_fh = logging.FileHandler(f"snmp_trap_listener_{LOCATION.lower()}_decoded.log")
+_dec_fh.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+decoded_log.addHandler(_dec_fh)
+decoded_log.propagate = False
 
 HB_URL      = os.environ.get("HITRACK_HEARTBEAT_URL",    "").strip()
 HB_TOKEN    = os.environ.get("HITRACK_HEARTBEAT_TOKEN",  "").strip()
@@ -315,12 +328,6 @@ def decode_trap(
         if key.endswith(".0"):
             vb[key[:-2]] = val_str
 
-    raw_log.info(
-        "TRAP src=%s ver=%s ent=%s trapoid=%s varbinds=%s",
-        source_ip, snmp_version, enterprise_oid, trap_oid,
-        [(o, v[:80]) for o, v in var_binds],
-    )
-
     ent = (enterprise_oid or trap_oid or "").lstrip(".")
 
     fields: dict = {
@@ -358,16 +365,16 @@ def decode_trap(
             _add_trap_bools(fields, cat)
             return fields
 
-    log.debug("DROP unknown enterprise %s from %s", ent, source_ip)
-    return None
+    fields["is_valid"] = False
+    return fields
 
 def _decode_unity(source_ip: str, ent: str, vb: dict, fields: dict) -> dict | None:
     sev_raw   = _vb_int_prefix(vb, UNITY_VB_SEV)
     severity  = UNITY_SEV_MAP.get(sev_raw, "unknown") if sev_raw is not None else "unknown"
 
     if sev_raw is not None and sev_raw >= 4:
-        log.debug("DROP Unity INFO/OK trap (sev=%d) from %s", sev_raw, source_ip)
-        return None
+        fields["is_valid"] = False
+        return fields
 
     description = _vb_str_prefix(vb, UNITY_VB_DESC)     or _vb_str_prefix(vb, UNITY_VB_SUMMARY)
     component   = _vb_str_prefix(vb, UNITY_VB_COMPONENT) or ""
@@ -382,9 +389,8 @@ def _decode_unity(source_ip: str, ent: str, vb: dict, fields: dict) -> dict | No
     if not cat:
         cat = classify_hw_category(f"{component} {description}")
     if not cat:
-        log.debug("DROP Unity non-hardware trap (comp=%s desc=%s) from %s",
-                  component, description, source_ip)
-        return None
+        fields["is_valid"] = False
+        return fields
 
     fields.update({
         "device_type":   "unity_xt",
@@ -419,9 +425,8 @@ def _decode_powermax_storevntd(source_ip: str, vb: dict, fields: dict) -> dict |
     if not cat:
         cat = classify_hw_category(description)
     if not cat:
-        log.debug("DROP PowerMAX non-hardware trap (src=%s evt=%s comp=%s) from %s",
-                  source_name, event_id, comp_code, source_ip)
-        return None
+        fields["is_valid"] = False
+        return fields
 
     fields.update({
         "device_type":    "powermax_8500",
@@ -449,14 +454,13 @@ def _decode_fcmgmt(source_ip: str, vb: dict, fields: dict) -> dict | None:
     severity = FCMGMT_SEV_MAP.get(sev_raw or 0, "unknown")
 
     if type_raw not in FCMGMT_HW_TYPES and (sev_raw or 0) < 3:
-        log.debug("DROP FCMGMT non-hardware event (type=%s sev=%s) from %s",
-                  type_raw, sev_raw, source_ip)
-        return None
+        fields["is_valid"] = False
+        return fields
 
     cat = classify_hw_category(f"{description} {obj_str}")
     if not cat:
-        log.debug("DROP FCMGMT non-hardware description '%s' from %s", description[:80], source_ip)
-        return None
+        fields["is_valid"] = False
+        return fields
 
     fields.update({
         "device_type":    "powermax_8500",
@@ -489,13 +493,13 @@ def _decode_powervault(source_ip: str, ent: str, vb: dict, fields: dict) -> dict
 
     if sev_raw is not None and sev_raw >= 4:
         if not _ANY_HW_RE.search(description):
-            log.debug("DROP PowerVault INFO trap from %s", source_ip)
-            return None
+            fields["is_valid"] = False
+            return fields
 
     cat = classify_hw_category(f"{comp_type} {description}")
     if not cat:
-        log.debug("DROP PowerVault non-hardware trap '%s' from %s", description[:80], source_ip)
-        return None
+        fields["is_valid"] = False
+        return fields
 
     fields.update({
         "device_type":    "powervault",
@@ -622,11 +626,6 @@ def make_trap_callback(writer: InfluxWriter, pool: ThreadPoolExecutor):
         except Exception:
             source_ip = "0.0.0.0"
 
-        measurement = classify_source(source_ip)
-        if measurement is None:
-            log.debug("DROP trap from non-allowed IP: %s", source_ip)
-            return
-
         vb_pairs: list[tuple[str, str]] = []
         for oid_obj, val_obj in varBinds:
             try:
@@ -653,6 +652,15 @@ def make_trap_callback(writer: InfluxWriter, pool: ThreadPoolExecutor):
                 enterprise_oid = parts[0]
             else:
                 enterprise_oid = trap_oid
+                
+        # Universal Raw Log
+        raw_log.info(
+            "TRAP src=%s ver=%s ent=%s trapoid=%s varbinds=%s",
+            source_ip, snmp_version, enterprise_oid, trap_oid,
+            [(o, v[:80]) for o, v in vb_pairs],
+        )
+
+        measurement = classify_source(source_ip)
 
         pool.submit(
             _safe_process,
@@ -674,6 +682,15 @@ def _safe_process(
             snmp_version, generic_trap, specific_trap,
         )
         if fields is None:
+            return
+
+        # Universal Decoded Log
+        decoded_log.info("DECODED: %s", json.dumps(fields))
+
+        if measurement is None:
+            return
+            
+        if not fields.get("is_valid", True):
             return
 
         log.info(
