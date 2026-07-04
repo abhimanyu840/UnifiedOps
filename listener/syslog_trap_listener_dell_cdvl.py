@@ -655,10 +655,42 @@ def build_snmp_engine() -> snmp_engine.SnmpEngine:
     if V3_USER and V3_AUTH_KEY:
         auth_proto = _get_auth_protocol(V3_AUTH_PROTO)
         priv_proto = _get_priv_protocol(V3_PRIV_PROTO) if V3_PRIV_KEY else snmp_config.usmNoPrivProtocol
+        
+        # 1. Register for local engine ID (standard behavior)
         try:
-            snmp_config.addV3User(eng, V3_USER, auth_proto, V3_AUTH_KEY, priv_proto, V3_PRIV_KEY or "")
+            add_user_fn = getattr(snmp_config, "add_v3_user", snmp_config.addV3User)
+            add_user_fn(eng, V3_USER, auth_proto, V3_AUTH_KEY, priv_proto, V3_PRIV_KEY or "")
         except Exception as exc:
-            log.warning("SNMP v3 user registration failed: %s", exc)
+            log.warning("SNMP v3 local user registration failed: %s", exc)
+
+        # 2. Dynamically clone the user for ANY remote Engine ID that sends us a trap
+        def on_engine_id_discovery(snmpEngine, execpoint, variables, cbCtx):
+            securityEngineId = variables.get("securityEngineId")
+            if securityEngineId:
+                try:
+                    add_user_fn(
+                        snmpEngine, V3_USER, auth_proto, V3_AUTH_KEY,
+                        priv_proto, V3_PRIV_KEY or "", securityEngineId=securityEngineId
+                    )
+                    log.info("Localized SNMPv3 keys for newly discovered Engine ID: %s", securityEngineId.prettyPrint())
+                except Exception as e:
+                    log.error("Failed to localize keys for Engine ID %s: %s", securityEngineId.prettyPrint(), e)
+
+        try:
+            register_fn = getattr(eng.observer, "register_observer", None)
+            if not register_fn:
+                register_fn = getattr(eng.observer, "registerObserver", None)
+            
+            if register_fn:
+                register_fn(
+                    on_engine_id_discovery,
+                    "rfc3412.receiveMessage:request",
+                    "rfc2576.registerContextEngineId"
+                )
+            else:
+                log.warning("PySNMP Observer not found, dynamic Engine ID discovery might fail.")
+        except Exception as e:
+            log.warning("Failed to register SNMPv3 Engine ID observer: %s", e)
 
     snmp_config.addTransport(
         eng,
