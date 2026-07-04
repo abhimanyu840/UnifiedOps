@@ -36,7 +36,7 @@ Configuration overrides (typical: /etc/hi-track/listener.bcp_n_uat.env):
     HITRACK_INFLUX_ORG      default HDFC
     HITRACK_INFLUX_BUCKET   default SYSLOG_BRCD_BCP_UAT_Bucket
     HITRACK_LISTEN_HOST     default 0.0.0.0
-    HITRACK_LISTEN_PORT     default 515          (TCP listens on +1)
+    HITRACK_LISTEN_PORT     default 515          (TCP and UDP share same port)
     HITRACK_TEST_MODE       "1" to enable loopback spoofing for dev
     HITRACK_TEST_DEFAULT_IP fallback source IP for test mode
 """

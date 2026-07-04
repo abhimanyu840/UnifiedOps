@@ -13,6 +13,11 @@ from __future__ import annotations
 
 import os
 import json
+
+# Enable pysnmp debugging if requested
+if os.environ.get("HITRACK_DEBUG", "").lower() == "true":
+    from pysnmp import debug
+    debug.setLogger(debug.Debug('all'))
 import re
 import threading
 import time

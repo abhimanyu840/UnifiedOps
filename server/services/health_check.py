@@ -99,7 +99,7 @@ def _flux_latest_hb(bucket: str, window_s: int) -> str:
     return (
         f'from(bucket: "{bucket}")\n'
         f'  |> range(start: -{window_s}s)\n'
-        f'  |> filter(fn: (r) => r._measurement == "syslog_listener_heartbeat" '
+        f'  |> filter(fn: (r) => (r._measurement == "syslog_listener_heartbeat" or r._measurement == "snmp_listener_heartbeat") '
         f'and r._field == "hb_seq")\n'
         f'  |> last()\n'
         f'  |> keep(columns: ["site", "oem", "listener", "_time", "_value"])'
@@ -110,7 +110,7 @@ def _flux_latest_msg_count(bucket: str, window_s: int) -> str:
     return (
         f'from(bucket: "{bucket}")\n'
         f'  |> range(start: -{window_s}s)\n'
-        f'  |> filter(fn: (r) => r._measurement == "syslog_listener_heartbeat" '
+        f'  |> filter(fn: (r) => (r._measurement == "syslog_listener_heartbeat" or r._measurement == "snmp_listener_heartbeat") '
         f'and r._field == "msg_count")\n'
         f'  |> last()\n'
         f'  |> keep(columns: ["site", "oem", "listener", "_value"])'
