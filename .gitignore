@@ -37,3 +37,10 @@ pnpm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# AI and Developer Config Overrides
+AGENTS.md
+GEMINI.md
+.antigravity
+.ai-workspace/
+private/
