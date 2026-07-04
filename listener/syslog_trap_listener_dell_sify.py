@@ -167,9 +167,17 @@ IP_TO_STORAGE_NAME: dict[str, str] = {
 }
 
 # Add your extracted hex Engine IDs here for statically registering SNMPv3 users.
-# Example: "10.226.157.210": bytes.fromhex("80001f8880..."),
+# For Dell PowerMAX, the Engine ID is 8000047304 + Hex(Serial Number)
 KNOWN_ENGINE_IDS: dict[str, bytes] = {
-    # Populate this with exact hex strings extracted from snmpwalk or Wireshark captures.
+    "10.226.157.210": bytes.fromhex("8000047304323230323031313438"), # CK220201148
+    "10.226.157.211": bytes.fromhex("8000047304323230323031313438"), # CK220201148
+    "10.226.157.212": bytes.fromhex("8000047304323230323031313438"), # CK220201148
+    "10.226.157.213": bytes.fromhex("8000047304323230323031313438"), # CK220201148
+    
+    "10.226.157.214": bytes.fromhex("8000047304323230323031313439"), # CK220201149
+    "10.226.157.215": bytes.fromhex("8000047304323230323031313439"), # CK220201149
+    "10.226.157.216": bytes.fromhex("8000047304323230323031313439"), # CK220201149
+    "10.226.157.217": bytes.fromhex("8000047304323230323031313439"), # CK220201149
 }
 
 def _build_filter_table(ip_filter: dict[str, str]):
