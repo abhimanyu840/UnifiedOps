@@ -84,7 +84,7 @@ export function InfrastructureDownModal({ event, remaining, onAcknowledge }: Pro
             <p className="listener-modal__lede">
               The heartbeat InfluxDB for site <strong>{event.site}</strong> is
               not responding. <strong>Listener status cannot be determined</strong>
-              {' '}while the heartbeat store is down — the underlying syslog
+              {' '}while the heartbeat store is down — the underlying syslog/SNMP
               listeners may still be running, but their heartbeats can&rsquo;t
               land. Alerts already in the alert buckets continue to flow.
             </p>

@@ -44,10 +44,7 @@ const getList = (key: string, fallback: string[] = []): string[] => {
 export const runtimeConfig = Object.freeze({
   /** Top-bar product / customer brand text */
   brandTitle:        getString('BRAND_TITLE',       'UnifiedOps'),
-  /** Left logo URL (e.g. integrator brand) */
-  brandLogoLeft:     getString('BRAND_LOGO_LEFT',   '/wipro.png'),
-  /** Right logo URL (e.g. end-customer brand) */
-  brandLogoRight:    getString('BRAND_LOGO_RIGHT',  '/hdfc.png'),
+
   /** Browser tab title */
   dashboardTitle:    getString('DASHBOARD_TITLE',   'UnifiedOps v2'),
   /** Default time range key (`5m`, `15m`, `30m`, `1h` … `30d`) */

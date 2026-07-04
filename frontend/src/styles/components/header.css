@@ -21,25 +21,6 @@
   gap: 10px;
 }
 
-.brand-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.brand {
-  height: 30px;
-  width: auto;
-  object-fit: contain;
-  display: block;
-  background: #fff;
-  border-radius: 4px;
-  padding: 2px 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-
-.brand--wipro { height: 30px; }
-.brand--hdfc  { height: 30px; }
 
 .header__center {
   display: flex;
