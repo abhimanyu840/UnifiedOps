@@ -192,6 +192,11 @@ IP_TO_STORAGE_NAME: dict[str, str] = {
     "10.227.66.75":   "PowerVault_GSCDM54-CDVL",
 }
 
+# Add your extracted hex Engine IDs here for statically registering SNMPv3 users.
+KNOWN_ENGINE_IDS: dict[str, bytes] = {
+    # Populate this with exact hex strings extracted from snmpwalk or Wireshark captures.
+}
+
 def _build_filter_table(ip_filter: dict[str, str]):
     table = []
     for entry, measurement in ip_filter.items():
@@ -662,6 +667,17 @@ def build_snmp_engine() -> snmp_engine.SnmpEngine:
             add_user_fn(eng, V3_USER, auth_proto, V3_AUTH_KEY, priv_proto, V3_PRIV_KEY or "")
         except Exception as exc:
             log.warning("SNMP v3 local user registration failed: %s", exc)
+
+        # 1.5. Register explicitly for all known remote Engine IDs
+        for ip, engine_id_bytes in KNOWN_ENGINE_IDS.items():
+            try:
+                add_user_fn(
+                    eng, V3_USER, auth_proto, V3_AUTH_KEY,
+                    priv_proto, V3_PRIV_KEY or "", securityEngineId=engine_id_bytes
+                )
+                log.info("Statically registered SNMPv3 keys for known Engine ID: %s (%s)", engine_id_bytes.hex(), ip)
+            except Exception as e:
+                log.warning("Failed to statically register keys for Engine ID %s: %s", engine_id_bytes.hex(), e)
 
         # 2. Dynamically clone the user for ANY remote Engine ID that sends us a trap
         def on_engine_id_discovery(snmpEngine, execpoint, variables, cbCtx):
