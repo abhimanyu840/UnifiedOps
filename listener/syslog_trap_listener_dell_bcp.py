@@ -641,7 +641,8 @@ def build_snmp_engine() -> snmp_engine.SnmpEngine:
                 register_fn(
                     on_engine_id_discovery,
                     "rfc3412.receiveMessage:request",
-                    "rfc2576.registerContextEngineId"
+                    "rfc2576.registerContextEngineId",
+                    "rfc3414.processIncomingMsg"
                 )
             else:
                 log.warning("PySNMP Observer not found, dynamic Engine ID discovery might fail.")
