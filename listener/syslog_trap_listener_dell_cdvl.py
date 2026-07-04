@@ -111,7 +111,7 @@ def _heartbeat_loop() -> None:
         log.info("heartbeat disabled - HITRACK_HEARTBEAT_URL/TOKEN/BUCKET not set")
         return
     try:
-        hb_client = InfluxDBClient(url=HB_URL, token=HB_TOKEN, org=HB_ORG)
+        hb_client = InfluxDBClient(url=HB_URL, token=HB_TOKEN, org=HB_ORG, verify_ssl=False)
         hb_write  = hb_client.write_api(write_options=SYNCHRONOUS)
     except Exception as exc:
         log.warning("heartbeat disabled - influx init failed: %s", exc)

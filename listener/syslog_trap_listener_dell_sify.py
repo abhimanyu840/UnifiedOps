@@ -111,7 +111,7 @@ def _heartbeat_loop() -> None:
         log.info("heartbeat disabled - HITRACK_HEARTBEAT_URL/TOKEN/BUCKET not set")
         return
     try:
-        hb_client = InfluxDBClient(url=HB_URL, token=HB_TOKEN, org=HB_ORG)
+        hb_client = InfluxDBClient(url=HB_URL, token=HB_TOKEN, org=HB_ORG, verify_ssl=False)
         hb_write  = hb_client.write_api(write_options=SYNCHRONOUS)
     except Exception as exc:
         log.warning("heartbeat disabled - influx init failed: %s", exc)
@@ -144,9 +144,93 @@ def _start_heartbeat() -> None:
     threading.Thread(target=_heartbeat_loop, daemon=True,
                      name=f"hb-{HB_LISTENER}").start()
 
-IP_FILTER: dict[str, str] = {}
+IP_FILTER: dict[str, str] = {
+    "10.227.66.72":   "unity_storage",
+    "10.227.65.59":   "powermax_storage",
+    "10.227.65.60":   "powermax_storage",
+    "10.227.65.61":   "powermax_storage",
+    "10.227.65.62":   "powermax_storage",
+    "10.227.66.187":  "powermax_storage",
+    "10.227.66.188":  "powermax_storage",
+    "10.227.66.189":  "powermax_storage",
+    "10.227.66.190":  "powermax_storage",
+    "10.226.157.202": "powermax_storage",
+    "10.226.157.203": "powermax_storage",
+    "10.226.157.204": "powermax_storage",
+    "10.226.157.205": "powermax_storage",
+    "10.226.157.206": "powermax_storage",
+    "10.226.157.207": "powermax_storage",
+    "10.226.157.208": "powermax_storage",
+    "10.226.157.209": "powermax_storage",
+    "10.226.157.210": "powermax_storage",
+    "10.226.157.211": "powermax_storage",
+    "10.226.157.212": "powermax_storage",
+    "10.226.157.213": "powermax_storage",
+    "10.226.157.214": "powermax_storage",
+    "10.226.157.215": "powermax_storage",
+    "10.226.157.216": "powermax_storage",
+    "10.226.157.217": "powermax_storage",
+    "10.65.13.148":   "powermax_storage",
+    "10.65.13.149":   "powermax_storage",
+    "10.65.13.150":   "powermax_storage",
+    "10.65.13.151":   "powermax_storage",
+    "10.65.13.152":   "powermax_storage",
+    "10.65.13.153":   "powermax_storage",
+    "10.65.13.154":   "powermax_storage",
+    "10.65.13.155":   "powermax_storage",
+    "10.65.13.156":   "powermax_storage",
+    "10.65.13.157":   "powermax_storage",
+    "10.65.13.158":   "powermax_storage",
+    "10.65.13.159":   "powermax_storage",
+    "10.229.232.211": "powermax_storage",
+    "10.229.232.212": "powermax_storage",
+    "10.227.66.74":   "powervault_storage",
+    "10.227.66.75":   "powervault_storage",
+}
 
-IP_TO_STORAGE_NAME: dict[str, str] = {}
+IP_TO_STORAGE_NAME: dict[str, str] = {
+    "10.227.66.72":   "Unity_XT480_20401-SIFY",
+    "10.227.65.59":   "PowerMAX8500_20513-SIFY",
+    "10.227.65.60":   "PowerMAX8500_20513-SIFY",
+    "10.227.65.61":   "PowerMAX8500_20513-SIFY",
+    "10.227.65.62":   "PowerMAX8500_20513-SIFY",
+    "10.227.66.187":  "PowerMAX8500_20512-SIFY",
+    "10.227.66.188":  "PowerMAX8500_20512-SIFY",
+    "10.227.66.189":  "PowerMAX8500_20512-SIFY",
+    "10.227.66.190":  "PowerMAX8500_20512-SIFY",
+    "10.226.157.202": "PowerMAX8500_20516-SIFY",
+    "10.226.157.203": "PowerMAX8500_20516-SIFY",
+    "10.226.157.204": "PowerMAX8500_20516-SIFY",
+    "10.226.157.205": "PowerMAX8500_20516-SIFY",
+    "10.226.157.206": "PowerMAX8500_20519-SIFY",
+    "10.226.157.207": "PowerMAX8500_20519-SIFY",
+    "10.226.157.208": "PowerMAX8500_20519-SIFY",
+    "10.226.157.209": "PowerMAX8500_20519-SIFY",
+    "10.226.157.210": "PowerMAX8500_20518-SIFY",
+    "10.226.157.211": "PowerMAX8500_20518-SIFY",
+    "10.226.157.212": "PowerMAX8500_20518-SIFY",
+    "10.226.157.213": "PowerMAX8500_20518-SIFY",
+    "10.226.157.214": "PowerMAX8500_20517-SIFY",
+    "10.226.157.215": "PowerMAX8500_20517-SIFY",
+    "10.226.157.216": "PowerMAX8500_20517-SIFY",
+    "10.226.157.217": "PowerMAX8500_20517-SIFY",
+    "10.65.13.148":   "PowerMAX8500_20505-SIFY",
+    "10.65.13.149":   "PowerMAX8500_20505-SIFY",
+    "10.65.13.150":   "PowerMAX8500_20505-SIFY",
+    "10.65.13.151":   "PowerMAX8500_20505-SIFY",
+    "10.65.13.152":   "PowerMAX8500_20507-SIFY",
+    "10.65.13.153":   "PowerMAX8500_20507-SIFY",
+    "10.65.13.154":   "PowerMAX8500_20507-SIFY",
+    "10.65.13.155":   "PowerMAX8500_20507-SIFY",
+    "10.65.13.156":   "PowerMAX8500_20506-SIFY",
+    "10.65.13.157":   "PowerMAX8500_20506-SIFY",
+    "10.65.13.158":   "PowerMAX8500_20506-SIFY",
+    "10.65.13.159":   "PowerMAX8500_20506-SIFY",
+    "10.229.232.211": "PowerMAX8500_20511_UAT-SIFY",
+    "10.229.232.212": "PowerMAX8500_20511_UAT-SIFY",
+    "10.227.66.74":   "PowerVault_20538-SIFY",
+    "10.227.66.75":   "PowerVault_20538-SIFY",
+}
 
 def _build_filter_table(ip_filter: dict[str, str]):
     table = []
