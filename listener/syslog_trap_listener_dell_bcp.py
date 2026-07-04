@@ -176,8 +176,20 @@ IP_TO_STORAGE_NAME: dict[str, str] = {
 
 # Add your extracted hex Engine IDs here for statically registering SNMPv3 users.
 KNOWN_ENGINE_IDS: dict[str, bytes] = {
-    # Populate this with exact hex strings extracted from snmpwalk or Wireshark captures.
+    "10.65.13.148": bytes.fromhex("8000047304323230323031313236"),
+    "10.65.13.149": bytes.fromhex("8000047304323230323031313236"),
+    "10.65.13.150": bytes.fromhex("8000047304323230323031313236"),
+    "10.65.13.151": bytes.fromhex("8000047304323230323031313236"),
+    "10.65.13.152": bytes.fromhex("8000047304323230323031313435"),
+    "10.65.13.153": bytes.fromhex("8000047304323230323031313435"),
+    "10.65.13.154": bytes.fromhex("8000047304323230323031313435"),
+    "10.65.13.155": bytes.fromhex("8000047304323230323031313435"),
+    "10.65.13.156": bytes.fromhex("8000047304323230323031313530"),
+    "10.65.13.157": bytes.fromhex("8000047304323230323031313530"),
+    "10.65.13.158": bytes.fromhex("8000047304323230323031313530"),
+    "10.65.13.159": bytes.fromhex("8000047304323230323031313530"),
 }
+
 
 def _build_filter_table(ip_filter: dict[str, str]):
     table = []
