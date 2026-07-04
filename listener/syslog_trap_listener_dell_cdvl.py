@@ -194,8 +194,27 @@ IP_TO_STORAGE_NAME: dict[str, str] = {
 
 # Add your extracted hex Engine IDs here for statically registering SNMPv3 users.
 KNOWN_ENGINE_IDS: dict[str, bytes] = {
-    # Populate this with exact hex strings extracted from snmpwalk or Wireshark captures.
+    "10.227.65.59": bytes.fromhex("8000047304323230323031313330"),
+    "10.227.65.60": bytes.fromhex("8000047304323230323031313330"),
+    "10.227.65.61": bytes.fromhex("8000047304323230323031313330"),
+    "10.227.65.62": bytes.fromhex("8000047304323230323031313330"),
+    "10.227.66.187": bytes.fromhex("8000047304323230323031313437"),
+    "10.227.66.188": bytes.fromhex("8000047304323230323031313437"),
+    "10.227.66.189": bytes.fromhex("8000047304323230323031313437"),
+    "10.227.66.190": bytes.fromhex("8000047304323230323031313437"),
+    "10.226.157.202": bytes.fromhex("8000047304323230323031313433"),
+    "10.226.157.203": bytes.fromhex("8000047304323230323031313433"),
+    "10.226.157.204": bytes.fromhex("8000047304323230323031313433"),
+    "10.226.157.205": bytes.fromhex("8000047304323230323031313433"),
+    "10.226.157.206": bytes.fromhex("8000047304323230323031313531"),
+    "10.226.157.207": bytes.fromhex("8000047304323230323031313531"),
+    "10.226.157.208": bytes.fromhex("8000047304323230323031313531"),
+    "10.226.157.209": bytes.fromhex("8000047304323230323031313531"),
+    "10.229.232.211": bytes.fromhex("8000047304323230323031313434"),
+    "10.229.232.212": bytes.fromhex("8000047304323230323031313434"),
+    # Note: Unity and PowerVault Engine IDs still need to be populated manually.
 }
+
 
 def _build_filter_table(ip_filter: dict[str, str]):
     table = []
