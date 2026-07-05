@@ -662,14 +662,18 @@ def build_snmp_engine() -> snmp_engine.SnmpEngine:
         except Exception as exc:
             log.warning("SNMP v3 local user registration failed: %s", exc)
 
-        # 1.5. Register explicitly for all known remote Engine IDs
+        # 1.5. Register explicitly for all known remote Engine IDs (deduplicated)
+        seen_engine_ids = set()
         for ip, engine_id_bytes in KNOWN_ENGINE_IDS.items():
+            if engine_id_bytes in seen_engine_ids:
+                continue
+            seen_engine_ids.add(engine_id_bytes)
             try:
                 add_user_fn(
                     eng, V3_USER, auth_proto, V3_AUTH_KEY,
                     priv_proto, V3_PRIV_KEY or "", securityEngineId=engine_id_bytes
                 )
-                log.info("Statically registered SNMPv3 keys for known Engine ID: %s (%s)", engine_id_bytes.hex(), ip)
+                log.info("Statically registered SNMPv3 keys for known Engine ID: %s (IP: %s)", engine_id_bytes.hex(), ip)
             except Exception as e:
                 log.warning("Failed to statically register keys for Engine ID %s: %s", engine_id_bytes.hex(), e)
 
