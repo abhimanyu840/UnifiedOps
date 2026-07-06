@@ -16,8 +16,8 @@ import json
 
 # Enable pysnmp debugging if requested
 if os.environ.get("HITRACK_DEBUG", "").lower() == "true":
-    from pysnmp import debug
-    debug.setLogger(debug.Debug('all'))
+    import logging
+    logging.getLogger('pysnmp').setLevel(logging.DEBUG)
 import re
 import threading
 import time
@@ -649,7 +649,9 @@ def _get_priv_protocol(name: str):
 
 def build_snmp_engine() -> snmp_engine.SnmpEngine:
     eng = snmp_engine.SnmpEngine()
-    snmp_config.addV1System(eng, "default-area", SNMP_COMMUNITY)
+    add_v1_fn = getattr(snmp_config, "add_v1_system", getattr(snmp_config, "addV1System", None))
+    if add_v1_fn:
+        add_v1_fn(eng, "default-area", SNMP_COMMUNITY)
 
     if V3_USER and V3_AUTH_KEY:
         auth_proto = _get_auth_protocol(V3_AUTH_PROTO)
