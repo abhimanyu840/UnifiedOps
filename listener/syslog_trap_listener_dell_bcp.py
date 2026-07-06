@@ -400,7 +400,8 @@ def decode_trap(
     if ent.startswith("1.3.6.1.4.1.1139.3"):
         return _decode_powermax_storevntd(source_ip, vb, fields)
 
-    if trap_oid.startswith("1.3.6.1.3.94") or ent.startswith("1.3.6.1.3.94"):
+    has_fcmgmt = any(k.startswith("1.3.6.1.3.94") for k in vb.keys())
+    if trap_oid.startswith("1.3.6.1.3.94") or ent.startswith("1.3.6.1.3.94") or has_fcmgmt:
         return _decode_fcmgmt(source_ip, vb, fields)
 
     if ent.startswith("1.3.6.1.4.1.674.10893") or ent.startswith("1.3.6.1.4.1.674.10895"):
