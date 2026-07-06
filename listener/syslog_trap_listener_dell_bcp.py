@@ -13,6 +13,13 @@ from __future__ import annotations
 
 import os
 import json
+import warnings
+try:
+    from cryptography.utils import CryptographyDeprecationWarning
+    warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
+except ImportError:
+    pass
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pysnmp")
 
 # Enable pysnmp debugging if requested
 if os.environ.get("HITRACK_DEBUG", "").lower() == "true":
@@ -709,7 +716,8 @@ def build_snmp_engine() -> snmp_engine.SnmpEngine:
         except Exception as e:
             log.warning("Failed to register SNMPv3 Engine ID observer: %s", e)
 
-    snmp_config.addTransport(
+    add_transport_fn = getattr(snmp_config, "add_transport", getattr(snmp_config, "addTransport", None))
+    add_transport_fn(
         eng,
         snmp_udp.domainName,
         snmp_udp.UdpTransport().openServerMode((LISTEN_HOST, LISTEN_PORT)),
