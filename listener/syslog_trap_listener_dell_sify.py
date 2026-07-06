@@ -386,7 +386,7 @@ def decode_trap(
     if ent.startswith("1.3.6.1.4.1.1139.103") or ent.startswith("1.3.6.1.4.1.1139.18"):
         return _decode_unity(source_ip, ent, vb, fields)
 
-    if ent.startswith("1.3.6.1.4.1.1139.3.8888"):
+    if ent.startswith("1.3.6.1.4.1.1139.3"):
         return _decode_powermax_storevntd(source_ip, vb, fields)
 
     if trap_oid.startswith("1.3.6.1.3.94") or ent.startswith("1.3.6.1.3.94"):
@@ -727,7 +727,9 @@ def build_snmp_engine() -> snmp_engine.SnmpEngine:
 def make_trap_callback(writer: InfluxWriter, pool: ThreadPoolExecutor):
     def _trap_cb(snmpEngine, stateReference, contextEngineId, contextName, varBinds, cbCtx) -> None:
         try:
-            transportDomain, transportAddress = snmpEngine.msgAndPduDsp.getTransportInfo(stateReference)
+            msg_dsp = getattr(snmpEngine, "message_dispatcher", getattr(snmpEngine, "msgAndPduDsp", None))
+            get_info = getattr(msg_dsp, "get_transport_info", getattr(msg_dsp, "getTransportInfo", None))
+            transportDomain, transportAddress = get_info(stateReference)
             source_ip = str(transportAddress[0]) if transportAddress else "0.0.0.0"
         except Exception:
             source_ip = "0.0.0.0"
