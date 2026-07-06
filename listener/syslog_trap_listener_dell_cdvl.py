@@ -741,6 +741,17 @@ def build_snmp_engine() -> snmp_engine.SnmpEngine:
         except Exception as e:
             log.warning("Failed to register SNMPv3 Engine ID observer: %s", e)
 
+
+    import socket
+    try:
+        # Pre-flight check to ensure the port isn't secretly held by another process (like snmptrapd)
+        _test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        _test_sock.bind((LISTEN_HOST, LISTEN_PORT))
+        _test_sock.close()
+    except OSError as e:
+        log.error("FATAL: Cannot bind to %s:%s. Another process is already using this port! Error: %s", LISTEN_HOST, LISTEN_PORT, e)
+        raise SystemExit(1)
+        
     add_transport_fn = getattr(snmp_config, "add_transport", getattr(snmp_config, "addTransport", None))
     add_transport_fn(
         eng,
