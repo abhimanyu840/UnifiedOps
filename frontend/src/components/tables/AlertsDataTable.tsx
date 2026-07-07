@@ -158,6 +158,7 @@ export function AlertsDataTable({
     onSortingChange: setSorting,
     getCoreRowModel:   getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getRowId: (row, index) => `${row.ts}-${row.storageName}-${row.event}-${index}`,
   });
 
   const allRows = table.getRowModel().rows;

@@ -361,23 +361,6 @@ export default function App() {
   // Flux, no REST polling.
   const dashSnap     = useDashboardStore(s => s.snapshot);
   const dashHydrated = useDashboardStore(s => s.hydrated);
-  const [fakeLoading, setFakeLoading] = useState(false);
-  const fakeLoadingTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    setFakeLoading(true);
-    if (fakeLoadingTimer.current) window.clearTimeout(fakeLoadingTimer.current);
-    fakeLoadingTimer.current = window.setTimeout(() => {
-      setFakeLoading(false);
-    }, 400); // Show skeleton for 400ms on filter switch
-    return () => {
-      if (fakeLoadingTimer.current) window.clearTimeout(fakeLoadingTimer.current);
-    };
-  }, [selectedVendor, locations.join(','), range.kind === 'relative' ? range.key : range.start]);
-
-  // Show skeleton placeholders until the first dashboard frame lands,
-  // or briefly when the user switches vendor/location/range to provide UI feedback.
-  const dashLoading  = !dashHydrated || fakeLoading;
 
   // The subscription is just (range, sites). Memoised so the WS hook's
   // dep array only triggers a re-subscribe when something actually
@@ -388,6 +371,12 @@ export default function App() {
              vendors: [] as string[] }),
     [range, locations],
   );
+
+  // Show skeleton placeholders until the first dashboard frame lands,
+  // or until the incoming snapshot's range and sites match our current subscription.
+  const dashLoading = !dashHydrated || !dashSnap ||
+                      dashSnap.range !== subscription.range ||
+                      (dashSnap.sites || []).slice().sort().join(',') !== subscription.sites.slice().sort().join(',');
 
   useWsConnector({
     subscription,
@@ -732,9 +721,10 @@ export default function App() {
 
           <div className="area-bottom bottom-bar">
             <RecentCriticalAlertsCard
-              alerts={filteredAlerts}
+              key={`recent-critical-${selectedVendor}`}
+              alerts={recentCriticalAlerts}
               rangeLabel={label}
-              loading={dashLoading && filteredAlerts.length === 0}
+              loading={dashLoading}
               onView={() => openModal(null)}
             />
             <NTPCard
