@@ -12,7 +12,7 @@ interface Props {
   loading?: boolean;
 }
 
-export function RecentCriticalAlertsCard({
+export function RecentAlertsCard({
   alerts,
   rangeLabel,
   onView,
@@ -41,7 +41,7 @@ export function RecentCriticalAlertsCard({
           </button>
         }
       >
-        Recent Critical Alerts
+        Recent Alerts
       </CardTitle>
 
       <AlertsDataTable

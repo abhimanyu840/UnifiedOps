@@ -21,7 +21,7 @@ export { AlertSeverityCard }           from '../../components/cards/AlertSeverit
 export { AlertTrendCard }              from '../../components/cards/AlertTrendCard';
 export { TopSystemsCard }              from '../../components/cards/TopSystemsCard';
 export { AlertTypeBreakdownCard }      from '../../components/cards/AlertTypeBreakdownCard';
-export { RecentCriticalAlertsCard }    from '../../components/cards/RecentCriticalAlertsCard';
+export { RecentAlertsCard }            from '../../components/cards/RecentAlertsCard';
 export { AlertDetailsModal }           from '../../components/overlays/AlertDetailsModal';
 export type { ModalFilters }           from '../../components/overlays/AlertDetailsModal';
 export { AlertRowHoverCard }           from '../../components/hover/AlertRowHoverCard';

@@ -8,7 +8,7 @@ import {
   AlertSeverityCard,
   AlertTrendCard,
   AlertTypeBreakdownCard,
-  RecentCriticalAlertsCard,
+  RecentAlertsCard,
   TopSystemsCard,
   TotalAlertsCard,
   useAlertsStore,
@@ -505,14 +505,6 @@ export default function App() {
   // so notice + informational chatter doesn't push real outages off the
   // visible rows. Already newest-first because `filteredAlerts` inherits
   // the App-level sort.
-  const recentCriticalAlerts = useMemo(
-    () => filteredAlerts.filter((a) => {
-      const sev = String(a.severity ?? '').toLowerCase();
-      return sev === 'critical' || sev === 'error' || sev === 'warning';
-    }),
-    [filteredAlerts],
-  );
-
   // Trend + spark: prefer the InfluxDB-aggregated buckets when the active
   // pill is "total" (and the snapshot has landed); otherwise fall back to
   // the client-side bucketing of the vendor-filtered stream so vendor
@@ -720,9 +712,9 @@ export default function App() {
           />
 
           <div className="area-bottom bottom-bar">
-            <RecentCriticalAlertsCard
-              key={`recent-critical-${selectedVendor}`}
-              alerts={recentCriticalAlerts}
+            <RecentAlertsCard
+              key={`recent-alerts-${selectedVendor}`}
+              alerts={filteredAlerts}
               rangeLabel={label}
               loading={dashLoading}
               onView={() => openModal(null)}
