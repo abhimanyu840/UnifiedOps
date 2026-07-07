@@ -62,7 +62,7 @@ SERVICE_NAME    = "unifiedops-ui"
 SERVICE_VERSION = "2.0.0"
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-DIST_DIR = Path(os.environ.get("HITRACK_UI_DIST", str(ROOT_DIR / "frontend" / "dist")))
+DIST_DIR = Path(os.environ.get("HITRACK_UI_DIST", str(ROOT_DIR / "server" / "dist")))
 
 LISTEN_HOST = os.environ.get("HITRACK_UI_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("HITRACK_UI_PORT", "8001"))
@@ -110,12 +110,15 @@ async def lifespan(_app: FastAPI):
     loop = asyncio.get_running_loop()
     loop.set_default_executor(_executor)
 
-    _influx_pool    = InfluxPool(_executor)
+    _influx_pool    = InfluxPool(_executor, default_timeout_ms=30000)
     _alerts_hub     = WsHub("alerts")
     _health_hub     = WsHub("listener-health")
     _alert_monitor  = AlertMonitor(_influx_pool, _alerts_hub)
     _health_monitor = HealthCheckMonitor(_influx_pool, _health_hub, alert_monitor=_alert_monitor)
-    _dashboard      = DashboardService(_influx_pool)
+    _dashboard      = DashboardService(
+        _influx_pool, 
+        is_bucket_ok=lambda k: _alert_monitor.is_bucket_ok(k) if _alert_monitor else True
+    )
     _dashboard_bc   = DashboardBroadcaster(_dashboard)
     _reports        = ReportService(_influx_pool)
 

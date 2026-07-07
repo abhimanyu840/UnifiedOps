@@ -20,7 +20,7 @@ import logging
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .influx_pool import InfluxPool, InfluxQueryError
 from .alert_monitor import VENDOR_BUCKETS, severity_from_body
@@ -261,8 +261,15 @@ def _flux_recent(bucket: str, range_key: str, limit: int) -> str:
 class DashboardService:
     """Composes the dashboard payload from per-bucket Flux queries."""
 
-    def __init__(self, pool: InfluxPool) -> None:
+    def __init__(self, pool: InfluxPool, is_bucket_ok: Optional[Callable[[str], bool]] = None) -> None:
         self._pool = pool
+        self._is_bucket_ok = is_bucket_ok
+
+    def _get_active_buckets(self, sites: Optional[List[str]] = None, vendors: Optional[List[str]] = None) -> List[Dict[str, str]]:
+        buckets = scoped_buckets(sites, vendors)
+        if self._is_bucket_ok:
+            return [b for b in buckets if self._is_bucket_ok(bucket_key(b))]
+        return buckets
 
     # ---- single-card endpoints -----------------------------------------
     async def get_total(
@@ -270,7 +277,7 @@ class DashboardService:
         sites:   Optional[List[str]] = None,
         vendors: Optional[List[str]] = None,
     ) -> int:
-        buckets = scoped_buckets(sites, vendors)
+        buckets = self._get_active_buckets(sites, vendors)
         rows = await asyncio.gather(*[
             self._safe_query(bucket_key(b), _flux_total(b["bucket"], range_key))
             for b in buckets
@@ -282,7 +289,7 @@ class DashboardService:
         sites:   Optional[List[str]] = None,
         vendors: Optional[List[str]] = None,
     ) -> Dict[str, int]:
-        buckets = scoped_buckets(sites, vendors)
+        buckets = self._get_active_buckets(sites, vendors)
         out = {"critical": 0, "error": 0, "warning": 0, "notice": 0, "informational": 0}
         rows = await asyncio.gather(*[
             self._safe_query(bucket_key(b), _flux_severity(b["bucket"], range_key))
@@ -304,7 +311,7 @@ class DashboardService:
         sites:   Optional[List[str]] = None,
         vendors: Optional[List[str]] = None,
     ) -> Dict[str, int]:
-        buckets = scoped_buckets(sites, vendors)
+        buckets = self._get_active_buckets(sites, vendors)
         out: Dict[str, int] = {}
         rows = await asyncio.gather(*[
             self._safe_query(bucket_key(b), _flux_categories(b["bucket"], range_key))
@@ -327,7 +334,7 @@ class DashboardService:
         vendors: Optional[List[str]] = None,
         limit:   int = 50,
     ) -> List[Dict[str, Any]]:
-        buckets = scoped_buckets(sites, vendors)
+        buckets = self._get_active_buckets(sites, vendors)
         per_bucket = await asyncio.gather(*[
             self._safe_query(bucket_key(b), _flux_top_systems(b["bucket"], range_key))
             for b in buckets
@@ -359,7 +366,7 @@ class DashboardService:
         vendors: Optional[List[str]] = None,
         target:  int = 25,
     ) -> List[Dict[str, Any]]:
-        buckets = scoped_buckets(sites, vendors)
+        buckets = self._get_active_buckets(sites, vendors)
         window  = bucket_window(range_key, target)
         rows_per_bucket = await asyncio.gather(*[
             self._safe_query(bucket_key(b), _flux_trend(b["bucket"], range_key, window))
@@ -398,7 +405,7 @@ class DashboardService:
         vendors: Optional[List[str]] = None,
         limit:   int = 200,
     ) -> List[Dict[str, Any]]:
-        buckets = scoped_buckets(sites, vendors)
+        buckets = self._get_active_buckets(sites, vendors)
         per_bucket_limit = max(5, min(2000, (limit * 2) // max(1, len(buckets) or 1)))
         per_bucket = await asyncio.gather(*[
             self._safe_query(
@@ -468,7 +475,7 @@ class DashboardService:
             self.get_categories  (range_key, sites, vendors),
             self.get_top_systems (range_key, sites, vendors, 50),
             self.get_trend       (range_key, sites, vendors, 25),
-            self.get_recent      (range_key, sites, vendors, 200),
+            self.get_recent      (range_key, sites, vendors, 5000),
         )
         return {
             "range":      range_key,

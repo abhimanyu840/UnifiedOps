@@ -411,7 +411,7 @@ HITACHI_SVP_RE = re.compile(
     r"(?P<seq>\d+)\s*,\s*"
     r"(?P<svp_severity>Acute|Serious|Moderate|Service|Info)\s*,\s*"
     r"(?P<array>[^,]+?)\s*,\s*"
-    r"(?:Hitachi_syslog|NewHitrack|Hitachi[_-]?Track)\s*,\s*"
+    r"(?:Hitachi_syslog|NewHitrack|Hitachi[_-]?Track|syslog_[a-zA-Z0-9_-]+)\s*,\s*"
     r"RefCode\s*:\s*(?P<refcode>[A-Fa-f0-9]+)\s*,\s*"
     r"(?P<svp_text>.+?)\s*$",
     re.I,
@@ -452,10 +452,10 @@ HITACHI_REFCODE_MAP = {
     "610002": "backup_alert",
     "623FFE": "shared_memory_alert",
     "624000": "shared_memory_alert",
-    "628000": "dp_pool_full",
-    "62B000": "dp_pool_threshold",
-    "62B100": "dp_pool_threshold",
-    "62C000": "dp_pool_full",
+    "628000": "pool_utilization",
+    "62B000": "pool_utilization",
+    "62B100": "pool_utilization",
+    "62C000": "pool_utilization",
 
     "660100": "encryption_alert",
     "660200": "encryption_alert",
@@ -577,23 +577,23 @@ HITACHI_REFCODE_PREFIX4_MAP = {
     "50D":  "battery_alert",
     "50E":  "battery_alert",
 
-    "602":  "dp_pool_full",
+    "602":  "pool_utilization",
     "603":  "shared_memory_alert",
-    "604":  "dp_pool_threshold",
-    "605":  "dp_pool_threshold",
-    "606":  "dp_pool_threshold",
-    "623":  "dp_pool_full",
-    "627":  "dp_pool_full",
-    "629":  "dp_pool_threshold",
-    "62A":  "dp_pool_threshold",
-    "62B":  "dp_pool_threshold",
-    "62C":  "dp_pool_threshold",
-    "62D":  "dp_pool_threshold",
-    "62E":  "dp_pool_threshold",
-    "631":  "dp_pool_full",
-    "632":  "dp_pool_full",
-    "633":  "dp_pool_full",
-    "634":  "dp_pool_full",
+    "604":  "pool_utilization",
+    "605":  "pool_utilization",
+    "606":  "pool_utilization",
+    "623":  "pool_utilization",
+    "627":  "pool_utilization",
+    "629":  "pool_utilization",
+    "62A":  "pool_utilization",
+    "62B":  "pool_utilization",
+    "62C":  "pool_utilization",
+    "62D":  "pool_utilization",
+    "62E":  "pool_utilization",
+    "631":  "pool_utilization",
+    "632":  "pool_utilization",
+    "633":  "pool_utilization",
+    "634":  "pool_utilization",
     "641":  "tier_relocation",
 
     "6610": "encryption_alert",
@@ -804,7 +804,7 @@ HITACHI_REFCODE_PREFIX4_MAP = {
 
 HITACHI_REFCODE_PREFIX_MAP = {
     "3A": "disk_failure",
-    "62": "dp_pool_threshold",
+    "62": "pool_utilization",
     "21": "port_fault",
     "15": "power_failure",
     "16": "fan_failure",

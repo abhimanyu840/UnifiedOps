@@ -79,6 +79,10 @@ export function AlertDetailsModal({
 }: Props) {
   const [live, setLive] = useState<LiveFilters>(() => fromIncoming(filters));
 
+  const updateField = <K extends keyof LiveFilters>(key: K, val: LiveFilters[K]) => {
+    setLive(prev => ({ ...prev, [key]: val }));
+  };
+
   // Reset filters whenever the modal is reopened with a new incoming context.
   useEffect(() => {
     if (open) setLive(fromIncoming(filters));
@@ -223,6 +227,7 @@ export function AlertDetailsModal({
 
             <div className="modal__body">
               <AlertsDataTable
+                key={JSON.stringify(live)}
                 alerts={filtered}
                 variant="full"
                 infinite

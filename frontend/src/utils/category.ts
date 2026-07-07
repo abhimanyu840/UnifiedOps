@@ -43,6 +43,7 @@ const RAW_TO_DISPLAY: Record<string, DisplayCategory> = {
   correction_copy:       'Disk failure',
 
   // Pool / capacity
+  pool_utilization:      'I/O pool threshold',
   dp_pool_threshold:     'I/O pool threshold',
   dp_pool_full:          'I/O pool threshold',
   pool_error:            'I/O pool threshold',

@@ -24,14 +24,14 @@ Wants=network-online.target
 Type=simple
 User=unifiedops
 Group=unifiedops
-WorkingDirectory=/opt/unifiedops
+WorkingDirectory=/var/www/UnifiedOps
 
 # --- FastAPI listen address ---
 Environment="HITRACK_UI_HOST=0.0.0.0"
 Environment="HITRACK_UI_PORT=8001"
-Environment="HITRACK_UI_DIST=/opt/unifiedops/frontend/dist"
-Environment="HITRACK_UI_TLS_CERT="
-Environment="HITRACK_UI_TLS_KEY="
+Environment="HITRACK_UI_DIST=/var/www/UnifiedOps/server/dist"
+Environment="HITRACK_UI_TLS_CERT=/var/www/UnifiedOps/server/cert.pem"
+Environment="HITRACK_UI_TLS_KEY=/var/www/UnifiedOps/server/key.pem"
 Environment="HITRACK_UI_TLS_KEY_PASSWORD="
 
 # --- Runtime UI config ---
@@ -154,7 +154,7 @@ Environment="HITRACK_VERIFY_TLS=1"
 Environment="HITRACK_CORS_ORIGINS=*"
 Environment="HITRACK_DASH_CACHE_TTL=3.0"
 
-ExecStart=/usr/bin/python /opt/unifiedops/server/server.py
+ExecStart=/usr/bin/python /var/www/UnifiedOps/server/server.py
 Restart=on-failure
 RestartSec=4
 StandardOutput=journal

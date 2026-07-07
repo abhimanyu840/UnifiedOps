@@ -389,6 +389,12 @@ class AlertMonitor:
     # ------------------------------------------------------------------
     # Snapshot + broadcast helpers
     # ------------------------------------------------------------------
+    def is_bucket_ok(self, key: str) -> bool:
+        """Return True if the bucket is known to be reachable and healthy."""
+        if key not in self._bucket_status:
+            return True  # default to true if we haven't checked yet
+        return self._bucket_status[key]["ok"]
+
     def snapshot(self, limit: int = 200) -> Dict[str, Any]:
         recent = self._recent[:limit]
         return {

@@ -1,0 +1,12 @@
+[Unit]
+Description=UnifiedOps UI Container
+After=network.target
+
+[Container]
+Image=localhost/unifiedops-ui:latest
+PublishPort=443:8000
+EnvironmentFile=/etc/hi-track/ui.env
+Volume=/etc/hi-track/tls:/etc/hi-track/tls:ro
+
+[Install]
+WantedBy=multi-user.target
