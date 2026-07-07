@@ -55,19 +55,18 @@ _HC_PATTERNS = [
     ("env_warning", re.compile(r"environment(al)?\s*warning", re.I)),
 ]
 
-def _reclassify_sannav(text: str) -> str:
+def _reclassify_event(text: str, default_cat: str = "sannav_event") -> str:
     for cat, pattern in _HC_PATTERNS:
         if pattern.search(text):
             return cat
-    return "sannav_event"
+    return default_cat
 
 def _flux_report(bucket: str, range_key: str, limit: int = 50000) -> str:
     """Pull raw messages up to a large limit for export."""
-    measurement_filter = 'r["_measurement"] == "san_switch" or r["_measurement"] == "sannav"'
     return (
         f'from(bucket: "{bucket}")\n'
         f'  |> range({range_clause(range_key)})\n'
-        f'  |> filter(fn: (r) => {measurement_filter})\n'
+        f'  |> filter(fn: (r) => {_MEASUREMENT_FILTER})\n'
         f'  |> filter(fn: (r) => {_COUNT_FIELD_FILTER})\n'
         f'  |> sort(columns: ["_time"], desc: true)\n'
         f'  |> limit(n: {limit})\n'
@@ -95,27 +94,36 @@ class ReportService:
         from fpdf import FPDF
 
         buckets = [dict(b) for b in scoped_buckets(sites, vendors)]
+        buckets = [dict(b) for b in scoped_buckets(sites, vendors)]
+        target_sites = []
+        target_vendors = []
+        
         if report_type == "health_check":
-            # For health check, we want CDVL, BCP, and SIFY.
-            buckets = [b for b in buckets if b["vendor"] == "brocade" and b["site"].upper() in ["CDVL", "BCP", "SIFY"]]
             import os
             for b in buckets:
-                site_upper = b["site"].upper()
-                b["bucket"] = os.environ.get(f"HITRACK_INFLUX_BROCADE_{site_upper}_REPORT_BUCKET", f"unified-ops-bucket-health-check-report-{b['site'].lower()}")
-                report_url = os.environ.get(f"HITRACK_INFLUX_BROCADE_{site_upper}_REPORT_URL")
-                report_token = os.environ.get(f"HITRACK_INFLUX_BROCADE_{site_upper}_REPORT_TOKEN")
-                if report_url:
-                    b["url"] = report_url
-                if report_token:
-                    b["token"] = report_token
+                target_sites.append(b["site"].upper())
+                target_vendors.append(b["vendor"].lower())
                 
-                # Register the report bucket in the pool dynamically
-                report_key = f"report:{b['site']}:{b['vendor']}"
-                self._pool.register(report_key, url=b["url"], token=b["token"], org=b["org"])
+                if b["vendor"] == "brocade":
+                    site_upper = b["site"].upper()
+                    b["bucket"] = os.environ.get(f"HITRACK_INFLUX_BROCADE_{site_upper}_REPORT_BUCKET", f"unified-ops-bucket-health-check-report-{b['site'].lower()}")
+                    report_url = os.environ.get(f"HITRACK_INFLUX_BROCADE_{site_upper}_REPORT_URL")
+                    report_token = os.environ.get(f"HITRACK_INFLUX_BROCADE_{site_upper}_REPORT_TOKEN")
+                    if report_url:
+                        b["url"] = report_url
+                    if report_token:
+                        b["token"] = report_token
+                    
+                    # Register the report bucket in the pool dynamically
+                    report_key = f"report:{b['site']}:{b['vendor']}"
+                    self._pool.register(report_key, url=b.get("url"), token=b.get("token"), org=b["org"])
+
+            target_sites = list(set(target_sites))
+            target_vendors = list(set(target_vendors))
 
         per_bucket = await asyncio.gather(*[
             self._safe_query(
-                f"report:{b['site']}:{b['vendor']}" if report_type == "health_check" else bucket_key(b),
+                f"report:{b['site']}:{b['vendor']}" if (report_type == "health_check" and b["vendor"] == "brocade") else bucket_key(b),
                 _flux_report(b["bucket"], range_key, limit)
             )
             for b in buckets
@@ -155,8 +163,10 @@ class ReportService:
                         severity = body_sev
                 
                 trap_cat = (r.get("trap_category") or "other")
-                if trap_cat == "sannav_event" or vendor == "sannav":
-                    reclass = _reclassify_sannav(event_text)
+                if report_type == "health_check":
+                    trap_cat = _reclassify_event(event_text, trap_cat)
+                elif trap_cat == "sannav_event" or vendor == "sannav":
+                    reclass = _reclassify_event(event_text, "sannav_event")
                     if reclass != "sannav_event":
                         trap_cat = reclass
 
@@ -186,7 +196,7 @@ class ReportService:
         report_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         if report_type == "health_check":
-            excel_bytes = self._generate_health_check_excel(out, report_time_str)
+            excel_bytes = self._generate_health_check_excel(out, report_time_str, target_sites, target_vendors)
             return excel_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
 
         if not out:
@@ -291,13 +301,12 @@ class ReportService:
             log.warning("reports %s query crash: %s", key, exc)
             raise
 
-    def _generate_health_check_excel(self, out: List[Dict[str, Any]], report_time_str: str) -> bytes:
+    def _generate_health_check_excel(self, out: List[Dict[str, Any]], report_time_str: str, target_sites: List[str], target_vendors: List[str]) -> bytes:
         import openpyxl
         from openpyxl.styles import PatternFill, Font, Alignment
         from collections import defaultdict
         
         inv = _load_inventory_json(_DEFAULT_INVENTORY_PATH)
-        brocade_inv = inv.get("brocade", {})
         
         red_fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
         bold_font = Font(bold=True)
@@ -309,99 +318,109 @@ class ReportService:
         if len(wb.sheetnames) > 0:
             del wb[wb.sheetnames[0]]
             
-        alerts_by_site = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        alerts_by_site_vendor = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
         for r in out:
             v = r["Vendor"].lower()
-            if v not in ("brocade", "sannav"):
-                continue
             s = r["Location"].upper()
             sw = r["Storage/Switch"]
             cat = r["Category"].lower()
-            alerts_by_site[s][sw][cat].append(r)
+            if v == "sannav":
+                v = "brocade"
+            alerts_by_site_vendor[s][v][sw][cat].append(r)
             
-        target_sites = ["CDVL", "BCP", "SIFY"]
-        
-        for site in target_sites:
-            ws = wb.create_sheet(title=f"{site}_Summary")
-            ws.append([f"Health Check Report: {site}"])
-            ws.append([f"Generated At: {report_time_str}"])
-            ws.append([])
-            
-            headers = ["Switch Name"] + HEALTH_CHECK_CATEGORIES
-            ws.append(headers)
-            for cell in ws[4]:
-                cell.font = bold_font
-            
-            site_switches = list(brocade_inv.get(site, []))
-            seen_switches = set(site_switches)
-            for sw in alerts_by_site[site].keys():
-                if sw not in seen_switches:
-                    site_switches.append(sw)
-                    seen_switches.add(sw)
-                    
-            if not site_switches:
-                ws.append(["No Brocade switches configured for this site."])
-                continue
+        for site in sorted(target_sites):
+            for vendor in sorted(target_vendors):
+                vendor_key = "brocade" if vendor == "sannav" else vendor
+                vendor_inv = inv.get(vendor_key, {})
+                site_devices = list(vendor_inv.get(site, []))
+                seen_devices = set(site_devices)
                 
-            for sw in sorted(site_switches):
-                row = [sw]
-                for cat in HEALTH_CHECK_CATEGORIES:
-                    count = len(alerts_by_site[site][sw][cat])
-                    if count == 0:
-                        row.append("✓")
-                    else:
-                        row.append(f"{count} Alerts")
-                ws.append(row)
-                
-                current_row = ws.max_row
-                for col_idx, cat in enumerate(HEALTH_CHECK_CATEGORIES, start=2):
-                    cell = ws.cell(row=current_row, column=col_idx)
-                    cell.alignment = center_align
-                    if cell.value == "✓":
-                        cell.font = green_bold_font
-                    else:
-                        cell.fill = red_fill
-                        cell.font = white_bold_font
+                for sw in alerts_by_site_vendor[site][vendor_key].keys():
+                    if sw not in seen_devices:
+                        site_devices.append(sw)
+                        seen_devices.add(sw)
                         
-        drill_headers = ["Local Time", "Severity", "Category", "Event Details", "Raw Syslog"]
-        
-        for site in target_sites:
-            for sw, cats in alerts_by_site[site].items():
-                all_sw_alerts = []
-                for cat_alerts in cats.values():
-                    all_sw_alerts.extend(cat_alerts)
-                    
-                if not all_sw_alerts:
+                if not site_devices:
                     continue
                     
-                all_sw_alerts.sort(key=lambda x: x["Timestamp"], reverse=True)
-                
-                safe_sw = sw.replace("/", "_").replace("\\", "_").replace("[", "_").replace("]", "_").replace("*", "_").replace("?", "_").replace(":", "_")
-                sheet_title = safe_sw[:31]
-                
-                base_title = sheet_title
-                counter = 1
-                while sheet_title in wb.sheetnames:
-                    suffix = f"_{counter}"
-                    sheet_title = base_title[:31 - len(suffix)] + suffix
-                    counter += 1
-                
-                ws = wb.create_sheet(title=sheet_title)
-                ws.append([f"Alert Details for {sw} ({site})"])
+                sheet_title = f"{site}_{vendor_key.capitalize()}_Summary"
+                ws = wb.create_sheet(title=sheet_title[:31])
+                ws.append([f"Health Check Report: {site} - {vendor_key.capitalize()}"])
+                ws.append([f"Generated At: {report_time_str}"])
                 ws.append([])
-                ws.append(drill_headers)
-                for cell in ws[3]:
+                
+                headers = ["Device Name"] + HEALTH_CHECK_CATEGORIES
+                ws.append(headers)
+                for cell in ws[4]:
                     cell.font = bold_font
                     
-                for a in all_sw_alerts:
-                    ws.append([
-                        a["Local Time"],
-                        a["Severity"],
-                        a["Category"],
-                        a["Event Details"],
-                        a["Raw Syslog"]
-                    ])
+                for sw in sorted(site_devices):
+                    row = [sw]
+                    for cat in HEALTH_CHECK_CATEGORIES:
+                        count = len(alerts_by_site_vendor[site][vendor_key][sw][cat])
+                        if count == 0:
+                            row.append("✓")
+                        else:
+                            row.append(f"{count} Alerts")
+                    ws.append(row)
                     
+                    current_row = ws.max_row
+                    for col_idx, cat in enumerate(HEALTH_CHECK_CATEGORIES, start=2):
+                        cell = ws.cell(row=current_row, column=col_idx)
+                        cell.alignment = center_align
+                        if cell.value == "✓":
+                            cell.font = green_bold_font
+                        else:
+                            cell.fill = red_fill
+                            cell.font = white_bold_font
+                            
+        drill_headers = ["Local Time", "Severity", "Category", "Event Details", "Raw Syslog"]
+        
+        for site in sorted(target_sites):
+            for vendor in sorted(target_vendors):
+                vendor_key = "brocade" if vendor == "sannav" else vendor
+                for sw, cats in alerts_by_site_vendor[site][vendor_key].items():
+                    all_sw_alerts = []
+                    for cat_alerts in cats.values():
+                        all_sw_alerts.extend(cat_alerts)
+                        
+                    if not all_sw_alerts:
+                        continue
+                        
+                    all_sw_alerts.sort(key=lambda x: x["Timestamp"], reverse=True)
+                    
+                    safe_sw = sw.replace("/", "_").replace("\\", "_").replace("[", "_").replace("]", "_").replace("*", "_").replace("?", "_").replace(":", "_")
+                    sheet_title = f"{safe_sw}"[:31]
+                    
+                    base_title = sheet_title
+                    counter = 1
+                    while sheet_title in wb.sheetnames:
+                        suffix = f"_{counter}"
+                        sheet_title = base_title[:31 - len(suffix)] + suffix
+                        counter += 1
+                    
+                    ws = wb.create_sheet(title=sheet_title)
+                    ws.append([f"Alert Details for {sw} ({site} - {vendor_key.capitalize()})"])
+                    ws.append([])
+                    ws.append(drill_headers)
+                    for cell in ws[3]:
+                        cell.font = bold_font
+                        
+                    for a in all_sw_alerts:
+                        ws.append([
+                            a["Local Time"],
+                            a["Severity"],
+                            a["Category"],
+                            a["Event Details"],
+                            a["Raw Syslog"]
+                        ])
+                        
+        if len(wb.sheetnames) == 0:
+            ws = wb.create_sheet(title="No Data")
+            ws.append([f"Health Check Report Generated At: {report_time_str}"])
+            ws.append([])
+            ws.append(["No devices configured or found for the selected criteria."])
+            
         import io
         buf = io.BytesIO()
         wb.save(buf)
